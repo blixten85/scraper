@@ -71,3 +71,5 @@ secrets/
 data/
 .env
 secrets/
+products.txt
+*.txt
