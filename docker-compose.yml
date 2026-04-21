@@ -101,7 +101,7 @@ services:
       swag: "enable"
       swag_address: "scraper_webui"
       swag_port: "3000"
-      swag_url: "scraper.denied.se"
+      swag_url: "scraper.${DOMAIN}"
 
   alerts:
     image: ghcr.io/blixten85/scraper-alerts:latest
