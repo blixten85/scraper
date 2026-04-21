@@ -168,11 +168,6 @@ ALERT_CHECK_INTERVAL=1800
 MIN_DROP_PERCENT=5
 MIN_DROP_AMOUNT=100
 COOLDOWN_HOURS=24
-
-# =========================
-# SÄKERHET
-# =========================
-API_KEY=din-genererade-api-nyckel-här
 ```
 
 ---

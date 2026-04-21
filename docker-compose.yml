@@ -5,11 +5,10 @@ services:
     image: postgres:16-alpine
     container_name: scraper_db
     restart: unless-stopped
-    # INGEN PUID/PGID här! Postgres använder 999:999 internt
     environment:
       POSTGRES_DB: scraper
       POSTGRES_USER: scraper
-      POSTGRES_PASSWORD: scraper_password
+      POSTGRES_PASSWORD_FILE: /run/secrets/scraper_password
     volumes:
       - ${DOCKER}/scraper/postgres:/var/lib/postgresql/data
     networks:
@@ -19,6 +18,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    secrets:
+      - scraper_password
     logging:
       driver: json-file
       options:
@@ -30,7 +31,7 @@ services:
     container_name: scraper_engine
     restart: unless-stopped
     pull_policy: always
-    user: "${PUID}:${PGID}"  # <-- VIKTIGT!
+    user: "${PUID}:${PGID}"
     security_opt:
       - no-new-privileges:true
     environment:
@@ -40,13 +41,15 @@ services:
       DB_HOST: postgres
       DB_NAME: scraper
       DB_USER: scraper
-      DB_PASSWORD: scraper_password
+      DB_PASSWORD_FILE: /run/secrets/scraper_password
       CONCURRENT_PAGES: ${CONCURRENT_PAGES}
       HEADLESS: ${HEADLESS}
       SCRAPE_INTERVAL: ${SCRAPE_INTERVAL}
     volumes:
       - ${DOCKER}/scraper/logs:/logs
       - ${DOCKER}/scraper/playwright-cache:/root/.cache/ms-playwright
+    secrets:
+      - scraper_password
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,9 +65,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    # Om du vill köra via gluetun (VPN), lägg till:
-    # network_mode: "service:gluetun"
-    # och kommentera ut networks ovan
 
   api:
     image: ghcr.io/blixten85/scraper-api:latest
@@ -81,8 +81,11 @@ services:
       DB_HOST: postgres
       DB_NAME: scraper
       DB_USER: scraper
-      DB_PASSWORD: scraper_password
-      API_KEY: ${API_KEY}
+      DB_PASSWORD_FILE: /run/secrets/scraper_password
+      APY_KEY_FILE: /run/secrets/scraper_apikey
+    secrets:
+      - scraper_password
+      - scraper_apikey
     depends_on:
       postgres:
         condition: service_healthy
@@ -116,8 +119,10 @@ services:
       TZ: ${TZ}
       PUID: ${PUID}
       PGID: ${PGID}
-      SCRAPER_API: http://scraper_api:8000  # <-- FIXAT! Inte gluetun längre
-      API_KEY: ${API_KEY}
+      SCRAPER_API: http://scraper_api:8000
+      SCRAPER_APIKEY_FILE: /run/secrets/scraper_apikey
+    secrets:
+      - scraper_apikey
     depends_on:
       - api
     networks:
@@ -153,13 +158,14 @@ services:
       DB_HOST: postgres
       DB_NAME: scraper
       DB_USER: scraper
-      DB_PASSWORD: scraper_password
+      DB_PASSWORD_FILE: /run/secrets/scraper_password
       DISCORD_WEBHOOK_FILE: /run/secrets/discord_webhook
       CHECK_INTERVAL: ${ALERT_CHECK_INTERVAL}
       MIN_DROP_PERCENT: ${MIN_DROP_PERCENT}
       MIN_DROP_AMOUNT: ${MIN_DROP_AMOUNT}
       COOLDOWN_HOURS: ${COOLDOWN_HOURS}
     secrets:
+      - scraper_password
       - discord_webhook
     depends_on:
       postgres:
@@ -178,5 +184,9 @@ networks:
     name: scraper_net
 
 secrets:
+  scraper_password:
+    file: ${CONFIG}/.secrets/scraper_password
+  scraper_apikey:
+    file: ${CONFIG}/.secrets/scraper_apikey
   discord_webhook:
     file: ${CONFIG}/.secrets/discord_webhook
