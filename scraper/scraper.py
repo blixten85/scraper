@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 PostgreSQL-baserad multi-site scraper - Produktionsversion
+med connection pooling, retry/backoff och periodic flush
 """
 
 import asyncio
@@ -19,12 +20,12 @@ from flask import Flask, request, jsonify
 import threading
 import psycopg2
 import psycopg2.extras
+from psycopg2.pool import ThreadedConnectionPool
 
 app = Flask(__name__)
 
 # === Konfiguration ===
 LOG_DIR = "/logs"
-SQLITE_BUSY_TIMEOUT = int(os.getenv('SQLITE_BUSY_TIMEOUT', '5000'))
 MAX_CONCURRENT = int(os.getenv('CONCURRENT_PAGES', '3'))
 HEADLESS = os.getenv('HEADLESS', 'true').lower() == 'true'
 SCRAPE_INTERVAL = int(os.getenv('SCRAPE_INTERVAL', '3600'))
@@ -41,22 +42,37 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-stats = {"products": 0, "updated": 0, "skipped": 0, "errors": 0}
+stats = {"products": 0, "updated": 0, "skipped": 0, "errors": 0, "retries": 0}
 shutdown_event = asyncio.Event()
 scraping_active = False
 write_buffer = []
 write_lock = asyncio.Lock()
 
+# === Connection Pool ===
+db_pool = None
 
-def get_db():
-    """PostgreSQL-anslutning"""
-    return psycopg2.connect(
+def init_db_pool():
+    global db_pool
+    db_pool = ThreadedConnectionPool(
+        minconn=1,
+        maxconn=10,
         host=os.getenv("DB_HOST", "postgres"),
         database=os.getenv("DB_NAME", "scraper"),
         user=os.getenv("DB_USER", "scraper"),
         password=os.getenv("DB_PASSWORD", "scraper_password"),
         connect_timeout=10
     )
+    logger.info("Database connection pool initialized")
+
+
+def get_db():
+    """Hämta anslutning från poolen"""
+    return db_pool.getconn()
+
+
+def return_db(conn):
+    """Lämna tillbaka anslutning till poolen"""
+    db_pool.putconn(conn)
 
 
 def init_db():
@@ -106,6 +122,14 @@ def init_db():
     )
     """)
     
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS alert_cooldown (
+        product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+        last_alert TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (product_id)
+    )
+    """)
+    
     # Index för prestanda
     cur.execute("CREATE INDEX IF NOT EXISTS idx_products_url ON products(url)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_products_last_updated ON products(last_updated)")
@@ -128,7 +152,7 @@ def init_db():
         logger.info("Skapade default config")
     
     conn.commit()
-    conn.close()
+    return_db(conn)
     logger.info("PostgreSQL-databas initierad")
 
 
@@ -139,7 +163,7 @@ def load_configs():
     cur.execute("SELECT * FROM scraper_config WHERE enabled = 1 ORDER BY name")
     columns = [desc[0] for desc in cur.description]
     configs = [dict(zip(columns, row)) for row in cur.fetchall()]
-    conn.close()
+    return_db(conn)
     return configs
 
 
@@ -181,10 +205,33 @@ async def extract_product(page, element, config):
         return None
 
 
-async def scrape_site(context, config):
+async def scrape_page_with_retry(context, url, max_retries=3):
+    """Skrapa sida med exponential backoff"""
     page = await context.new_page()
+    
+    for attempt in range(max_retries):
+        try:
+            await page.goto(url, timeout=60000)
+            await page.wait_for_load_state("domcontentloaded")
+            return page
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt + random.uniform(0, 1)
+                logger.warning(f"Retry {attempt+1}/{max_retries} for {url} after {wait_time:.1f}s: {e}")
+                stats['retries'] += 1
+                await asyncio.sleep(wait_time)
+            else:
+                await page.close()
+                raise
+    
+    await page.close()
+    return None
+
+
+async def scrape_site(context, config):
     page_num = 1
     products_found = 0
+    page = None
     
     try:
         logger.info(f"Startar: {config['name']}")
@@ -192,8 +239,9 @@ async def scrape_site(context, config):
         max_pages = config.get('max_pages', 10)
         
         while url and page_num <= max_pages and not shutdown_event.is_set():
-            await page.goto(url, timeout=60000)
-            await page.wait_for_load_state("domcontentloaded")
+            page = await scrape_page_with_retry(context, url)
+            if not page:
+                break
             
             for _ in range(3):
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
@@ -206,7 +254,7 @@ async def scrape_site(context, config):
                 if product:
                     async with write_lock:
                         write_buffer.append(product)
-                        if len(write_buffer) >= 20:  # <- MINSKAT från 50
+                        if len(write_buffer) >= 20:
                             await flush_buffer()
                     products_found += 1
             
@@ -214,9 +262,10 @@ async def scrape_site(context, config):
                 separator = '&' if '?' in config['base_url'] else '?'
                 url = f"{config['base_url']}{separator}page={page_num + 1}"
             else:
-                break
+                url = None
             
             page_num += 1
+            await page.close()
             await asyncio.sleep(random.uniform(1, 3))
         
         logger.info(f"Klar med {config['name']}: {products_found} produkter")
@@ -224,7 +273,8 @@ async def scrape_site(context, config):
         logger.error(f"Fel i {config['name']}: {e}")
         stats['errors'] += 1
     finally:
-        await page.close()
+        if page:
+            await page.close()
 
 
 async def flush_buffer():
@@ -269,7 +319,7 @@ async def flush_buffer():
             stats['errors'] += 1
     
     conn.commit()
-    conn.close()
+    return_db(conn)
 
 
 async def periodic_flush():
@@ -311,7 +361,7 @@ async def run_scraper():
     if write_buffer:
         await flush_buffer()
     
-    logger.info(f"Klar. Nya: {stats['products']}, Uppdaterade: {stats['updated']}")
+    logger.info(f"Klar. Nya: {stats['products']}, Uppdaterade: {stats['updated']}, Retries: {stats['retries']}")
 
 
 async def scraper_loop():
@@ -334,7 +384,13 @@ async def scraper_loop():
 # === Flask API ===
 @app.route('/health')
 def health():
-    return jsonify({'status': 'healthy', 'active': scraping_active, 'stats': stats})
+    health_status = {
+        'status': 'healthy' if db_pool else 'degraded',
+        'active': scraping_active,
+        'stats': stats,
+        'timestamp': datetime.datetime.now().isoformat()
+    }
+    return jsonify(health_status)
 
 
 @app.route('/config', methods=['GET'])
@@ -344,7 +400,7 @@ def get_configs():
     cur.execute("SELECT * FROM scraper_config ORDER BY name")
     columns = [desc[0] for desc in cur.description]
     configs = [dict(zip(columns, row)) for row in cur.fetchall()]
-    conn.close()
+    return_db(conn)
     return jsonify(configs)
 
 
@@ -377,7 +433,7 @@ def create_config():
     except psycopg2.errors.UniqueViolation:
         return jsonify({'status': 'error', 'message': 'Name already exists'}), 400
     finally:
-        conn.close()
+        return_db(conn)
 
 
 @app.route('/config/<int:config_id>', methods=['PUT'])
@@ -406,7 +462,7 @@ def update_config(config_id):
         config_id
     ))
     conn.commit()
-    conn.close()
+    return_db(conn)
     return jsonify({'status': 'success'})
 
 
@@ -416,7 +472,7 @@ def delete_config(config_id):
     cur = conn.cursor()
     cur.execute("UPDATE scraper_config SET enabled = 0 WHERE id = %s", (config_id,))
     conn.commit()
-    conn.close()
+    return_db(conn)
     return jsonify({'status': 'success'})
 
 
@@ -461,6 +517,7 @@ def signal_handler(signum, frame):
 
 
 if __name__ == "__main__":
+    init_db_pool()
     init_db()
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
