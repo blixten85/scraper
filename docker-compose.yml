@@ -1,0 +1,463 @@
+version: "3.9"
+
+# =========================
+# ENTERPRISE STACK V3
+# =========================
+# Förbättringar:
+# - Redis Streams (XREADGROUP) med consumer groups
+# - FastAPI istället för Flask (async-native)
+# - Network isolation (frontend/backend)
+# - Proxy rotation (rotating proxy service)
+# - Traefik reverse proxy med HTTPS
+# - Prometheus metrics + Grafana
+# - Resource limits på alla containers
+# - Secrets-hantering via Docker secrets (fallback till env_file)
+# - Full observability stack
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+    tag: "{{.Name}}"
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 30s
+
+x-deploy-resources: &default-resources
+  limits:
+    cpus: '2'
+    memory: 2G
+  reservations:
+    cpus: '0.5'
+    memory: 512M
+
+services:
+  # =========================
+  # INFRASTRUCTURE
+  # =========================
+  
+  traefik:
+    image: traefik:v3.0
+    container_name: scraper_traefik
+    restart: unless-stopped
+    command:
+      - "--api.insecure=false"
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=scraper_frontend"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL:-admin@example.com}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.buckets=0.1,0.3,1.2,5.0"
+      - "--accesslog=true"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${DATA_DIR:-./data}/traefik:/letsencrypt
+    networks:
+      - scraper_frontend
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: scraper_postgres
+    restart: unless-stopped
+    init: true
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-scraper}
+      POSTGRES_USER: ${POSTGRES_USER:-scraper}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    secrets:
+      - postgres_password
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=512MB"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "effective_cache_size=2GB"
+      - "-c"
+      - "work_mem=16MB"
+      - "-c"
+      - "maintenance_work_mem=128MB"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+    volumes:
+      - ${DATA_DIR:-./data}/postgres:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - scraper_backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scraper} -d ${POSTGRES_DB:-scraper}"]
+      <<: *healthcheck-defaults
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  redis:
+    image: redis:7-alpine
+    container_name: scraper_redis
+    restart: unless-stopped
+    init: true
+    command:
+      - redis-server
+      - --appendonly yes
+      - --maxmemory 512mb
+      - --maxmemory-policy allkeys-lru
+      - --requirepass ${REDIS_PASSWORD}
+      - --protected-mode yes
+      - --save 900 1
+      - --save 300 10
+    secrets:
+      - redis_password
+    volumes:
+      - ${DATA_DIR:-./data}/redis:/data
+    networks:
+      - scraper_backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      <<: *healthcheck-defaults
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+
+  # =========================
+  # PROXY ROTATION
+  # =========================
+  
+  proxy-rotator:
+    image: ghcr.io/blixten85/scraper-proxy:latest
+    container_name: scraper_proxy
+    restart: unless-stopped
+    init: true
+    environment:
+      PROXY_LIST_URL: ${PROXY_LIST_URL}
+      ROTATION_INTERVAL: ${PROXY_ROTATION_INTERVAL:-300}
+      HEALTH_CHECK_INTERVAL: 60
+    networks:
+      - scraper_backend
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # =========================
+  # APPLICATION SERVICES
+  # =========================
+
+  scraper:
+    image: ghcr.io/blixten85/scraper:latest
+    container_name: scraper_engine
+    restart: unless-stopped
+    init: true
+    pull_policy: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      proxy-rotator:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-scraper}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-scraper}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      PROXY_URL: http://proxy-rotator:8080
+      CONCURRENT_PAGES: ${CONCURRENT_PAGES:-3}
+      HEADLESS: ${HEADLESS:-true}
+      SCRAPE_INTERVAL: ${SCRAPE_INTERVAL:-3600}
+      MAX_PAGES_PER_SITE: ${MAX_PAGES_PER_SITE:-50}
+      RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-10}
+      RATE_LIMIT_PERIOD: ${RATE_LIMIT_PERIOD:-60}
+    volumes:
+      - ${DATA_DIR:-./data}/logs:/logs
+    networks:
+      - scraper_backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      <<: *healthcheck-defaults
+    logging: *default-logging
+    deploy:
+      resources: *default-resources
+    labels:
+      - "com.scraper.service=scraper"
+      - "com.scraper.version=3.0"
+
+  worker:
+    image: ghcr.io/blixten85/scraper:latest
+    container_name: scraper_worker
+    restart: unless-stopped
+    init: true
+    pull_policy: always
+    command: ["python", "worker.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-scraper}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-scraper}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CONSUMER_GROUP: scraper_workers
+      CONSUMER_NAME: worker-${HOSTNAME:-default}
+    volumes:
+      - ${DATA_DIR:-./data}/logs:/logs
+    networks:
+      - scraper_backend
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+    labels:
+      - "com.scraper.service=worker"
+      - "com.scraper.version=3.0"
+
+  alerts:
+    image: ghcr.io/blixten85/scraper-alerts:latest
+    container_name: scraper_alerts
+    restart: unless-stopped
+    init: true
+    pull_policy: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-scraper}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-scraper}
+      DISCORD_WEBHOOK_FILE: /run/secrets/discord_webhook
+      SLACK_WEBHOOK_FILE: /run/secrets/slack_webhook
+      MIN_DROP_PERCENT: ${MIN_DROP_PERCENT:-5}
+      MIN_DROP_AMOUNT: ${MIN_DROP_AMOUNT:-100}
+      COOLDOWN_HOURS: ${COOLDOWN_HOURS:-24}
+      CHECK_INTERVAL: ${ALERT_CHECK_INTERVAL:-1800}
+    secrets:
+      - discord_webhook
+      - slack_webhook
+    volumes:
+      - ${DATA_DIR:-./data}:/data:rw
+      - ${DATA_DIR:-./data}/logs:/logs
+    networks:
+      - scraper_backend
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  api:
+    image: ghcr.io/blixten85/scraper-api:latest
+    container_name: scraper_api
+    restart: unless-stopped
+    init: true
+    pull_policy: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-scraper}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-scraper}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      API_AUTH_TOKEN: ${API_AUTH_TOKEN}
+    secrets:
+      - api_auth_token
+    networks:
+      - scraper_frontend
+      - scraper_backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      <<: *healthcheck-defaults
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.api.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/api"
+      - "traefik.http.routers.api.middlewares=auth@docker,api-strip@docker"
+
+  webui:
+    image: ghcr.io/blixten85/scraper-webui:latest
+    container_name: scraper_webui
+    restart: unless-stopped
+    init: true
+    pull_policy: always
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_URL: http://scraper_api:8000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-scraper}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-scraper}
+    volumes:
+      - ${DATA_DIR:-./data}/logs:/logs
+    networks:
+      - scraper_frontend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      <<: *healthcheck-defaults
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.webui.rule=Host(`${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.webui.entrypoints=websecure"
+      - "traefik.http.routers.webui.tls.certresolver=letsencrypt"
+      - "traefik.http.services.webui.loadbalancer.server.port=3000"
+
+  # =========================
+  # OBSERVABILITY
+  # =========================
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: scraper_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${DATA_DIR:-./data}/prometheus:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - scraper_backend
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`monitor.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+      - "traefik.http.routers.prometheus.middlewares=auth@docker"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: scraper_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD_FILE: /run/secrets/grafana_password
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    secrets:
+      - grafana_password
+    volumes:
+      - ${DATA_DIR:-./data}/grafana:/var/lib/grafana
+      - ./grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+    networks:
+      - scraper_backend
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`monitor.${DOMAIN:-localhost}`) && PathPrefix(`/grafana`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  # =========================
+  # BACKUP SERVICE
+  # =========================
+
+  backup:
+    image: postgres:16-alpine
+    container_name: scraper_backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - ${DATA_DIR:-./data}/backups:/backups
+      - ./backup.sh:/backup.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "while true; do
+        sleep 86400;
+        /backup.sh;
+      done"
+    networks:
+      - scraper_backend
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+networks:
+  scraper_frontend:
+    driver: bridge
+    name: scraper_frontend
+  scraper_backend:
+    driver: bridge
+    name: scraper_backend
+    internal: true
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+  redis_password:
+    file: ./secrets/redis_password.txt
+  discord_webhook:
+    file: ./secrets/discord_webhook.txt
+  slack_webhook:
+    file: ./secrets/slack_webhook.txt
+  api_auth_token:
+    file: ./secrets/api_auth_token.txt
+  grafana_password:
+    file: ./secrets/grafana_password.txt

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Scraper - Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-cloud-download"></i> Web Scraper Pro
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/"><i class="bi bi-speedometer2"></i> Dashboard</a>
+                <a class="nav-link" href="/config"><i class="bi bi-gear"></i> Konfiguration</a>
+                <a class="nav-link" href="/api/docs" target="_blank"><i class="bi bi-code-square"></i> API</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <div class="col-12">
+                <h1 class="mb-4">
+                    Dashboard
+                    <small class="text-muted fs-6">{{ config.name }}</small>
+                </h1>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Produkter</h5>
+                        <h2 class="display-4">{{ stats.total_products or 0 }}</h2>
+                        <p class="card-text">Totalt i databasen</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Uppdaterade (24h)</h5>
+                        <h2 class="display-4">{{ stats.updated_24h or 0 }}</h2>
+                        <p class="card-text">Senaste dygnet</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card bg-warning text-dark">
+                    <div class="card-body">
+                        <h5 class="card-title">Prisfall</h5>
+                        <h2 class="display-4">{{ stats.products_with_drops or 0 }}</h2>
+                        <p class="card-text">Produkter med sänkt pris</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Status</h5>
+                        <h2 class="display-4">
+                            {% if config.enabled %}
+                            <i class="bi bi-check-circle-fill text-success"></i>
+                            {% else %}
+                            <i class="bi bi-x-circle-fill text-danger"></i>
+                            {% endif %}
+                        </h2>
+                        <p class="card-text">{{ "Aktiv" if config.enabled else "Inaktiv" }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Snabbåtgärder</h5>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-primary me-2" onclick="triggerScrape()">
+                            <i class="bi bi-play-fill"></i> Starta scraping nu
+                        </button>
+                        <a href="/config" class="btn btn-secondary me-2">
+                            <i class="bi bi-gear"></i> Ändra konfiguration
+                        </a>
+                        <button class="btn btn-info me-2" onclick="testConnection()">
+                            <i class="bi bi-wifi"></i> Testa anslutning
+                        </button>
+                        <button class="btn btn-success" onclick="exportData()">
+                            <i class="bi bi-download"></i> Exportera data
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Products Table -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Senaste produkterna</h5>
+                        <div>
+                            <input type="text" id="searchInput" class="form-control form-control-sm" 
+                                   placeholder="Sök produkter..." onkeyup="searchProducts()">
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0" id="productsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Produkt</th>
+                                        <th>Pris</th>
+                                        <th>Först sedd</th>
+                                        <th>Senast uppdaterad</th>
+                                        <th>Åtgärder</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="productsTableBody">
+                                    <tr>
+                                        <td colspan="5" class="text-center">Laddar produkter...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <nav>
+                            <ul class="pagination pagination-sm mb-0" id="pagination">
+                                <!-- Pagination will be inserted here -->
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product Detail Modal -->
+    <div class="modal fade" id="productModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Produktdetaljer</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="productModalBody">
+                    <!-- Content will be loaded dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        // Page specific JavaScript
+        let currentPage = 1;
+        const limit = 20;
+        
+        // Load products on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadProducts();
+        });
+        
+        function loadProducts(page = 1, search = '') {
+            currentPage = page;
+            const offset = (page - 1) * limit;
+            
+            fetch(`/api/products?limit=${limit}&offset=${offset}&search=${encodeURIComponent(search)}`)
+                .then(response => response.json())
+                .then(data => {
+                    updateProductsTable(data.products);
+                    updatePagination(data.total, page);
+                })
+                .catch(error => {
+                    console.error('Error loading products:', error);
+                    document.getElementById('productsTableBody').innerHTML = 
+                        '<tr><td colspan="5" class="text-center text-danger">Fel vid laddning av produkter</td></tr>';
+                });
+        }
+        
+        function updateProductsTable(products) {
+            const tbody = document.getElementById('productsTableBody');
+            
+            if (products.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">Inga produkter hittades</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = products.map(product => `
+                <tr>
+                    <td>
+                        <a href="${product.url}" target="_blank">${escapeHtml(product.title)}</a>
+                    </td>
+                    <td>${product.current_price} kr</td>
+                    <td>${formatDate(product.first_seen)}</td>
+                    <td>${formatDate(product.last_updated)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="showProductHistory(${product.id})">
+                            <i class="bi bi-graph-up"></i> Historik
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        function updatePagination(total, currentPage) {
+            const totalPages = Math.ceil(total / limit);
+            const pagination = document.getElementById('pagination');
+            
+            if (totalPages <= 1) {
+                pagination.innerHTML = '';
+                return;
+            }
+            
+            let html = '';
+            
+            // Previous button
+            html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="loadProducts(${currentPage - 1}); return false;">&laquo;</a>
+            </li>`;
+            
+            // Page numbers
+            for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
+                html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+                    <a class="page-link" href="#" onclick="loadProducts(${i}); return false;">${i}</a>
+                </li>`;
+            }
+            
+            // Next button
+            html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="loadProducts(${currentPage + 1}); return false;">&raquo;</a>
+            </li>`;
+            
+            pagination.innerHTML = html;
+        }
+        
+        function searchProducts() {
+            const search = document.getElementById('searchInput').value;
+            loadProducts(1, search);
+        }
+        
+        function showProductHistory(productId) {
+            fetch(`/api/products/${productId}/history`)
+                .then(response => response.json())
+                .then(data => {
+                    const modalBody = document.getElementById('productModalBody');
+                    const product = data.product;
+                    const history = data.history;
+                    
+                    let html = `
+                        <h6>${escapeHtml(product.title)}</h6>
+                        <p>Aktuellt pris: <strong>${product.current_price} kr</strong></p>
+                        <a href="${product.url}" target="_blank" class="btn btn-sm btn-outline-primary mb-3">
+                            Öppna produktsida
+                        </a>
+                    `;
+                    
+                    if (history.length > 0) {
+                        html += '<h6>Prishistorik</h6>';
+                        html += '<table class="table table-sm">';
+                        html += '<thead><tr><th>Datum</th><th>Pris</th><th>Förändring</th></tr></thead>';
+                        html += '<tbody>';
+                        
+                        let previousPrice = null;
+                        history.reverse().forEach(entry => {
+                            let change = '';
+                            if (previousPrice !== null) {
+                                const diff = entry.price - previousPrice;
+                                if (diff > 0) {
+                                    change = `<span class="text-danger">+${diff} kr</span>`;
+                                } else if (diff < 0) {
+                                    change = `<span class="text-success">${diff} kr</span>`;
+                                } else {
+                                    change = '<span class="text-muted">0 kr</span>';
+                                }
+                            }
+                            
+                            html += `<tr>
+                                <td>${formatDate(entry.timestamp)}</td>
+                                <td>${entry.price} kr</td>
+                                <td>${change}</td>
+                            </tr>`;
+                            
+                            previousPrice = entry.price;
+                        });
+                        
+                        html += '</tbody></table>';
+                        
+                        // Add chart
+                        html += '<canvas id="priceChart" style="max-height: 300px;"></canvas>';
+                    } else {
+                        html += '<p class="text-muted">Ingen prishistorik tillgänglig</p>';
+                    }
+                    
+                    modalBody.innerHTML = html;
+                    
+                    // Create chart if history exists
+                    if (history.length > 0) {
+                        setTimeout(() => {
+                            const ctx = document.getElementById('priceChart').getContext('2d');
+                            new Chart(ctx, {
+                                type: 'line',
+                                data: {
+                                    labels: history.map(h => formatDate(h.timestamp)),
+                                    datasets: [{
+                                        label: 'Pris (kr)',
+                                        data: history.map(h => h.price),
+                                        borderColor: 'rgb(75, 192, 192)',
+                                        tension: 0.1
+                                    }]
+                                },
+                                options: {
+                                    responsive: true,
+                                    maintainAspectRatio: true
+                                }
+                            });
+                        }, 100);
+                    }
+                    
+                    new bootstrap.Modal(document.getElementById('productModal')).show();
+                })
+                .catch(error => {
+                    console.error('Error loading product history:', error);
+                    alert('Kunde inte ladda produkthistorik');
+                });
+        }
+        
+        function triggerScrape() {
+            if (!confirm('Starta manuell scraping nu?')) return;
+            
+            fetch('/api/trigger-scrape', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Scraping startad! Det kan ta några minuter.');
+                    } else {
+                        alert('Kunde inte starta scraping: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Fel vid anrop: ' + error);
+                });
+        }
+        
+        function testConnection() {
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(data => {
+                    alert('Anslutning OK!\n' + 
+                          'Produkter: ' + (data.total_products || 0) + '\n' +
+                          'Senaste körning: ' + (data.last_run || 'Aldrig'));
+                })
+                .catch(error => {
+                    alert('Anslutningsfel: ' + error);
+                });
+        }
+        
+        function exportData() {
+            window.location.href = '/api/export/csv';
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function formatDate(dateString) {
+            if (!dateString) return 'N/A';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('sv-SE') + ' ' + 
+                   date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+        }
+    </script>
+</body>
+</html>
