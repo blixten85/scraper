@@ -1,7 +1,7 @@
 # 🕷️ Web Scraper Platform
 
 [![Build and Push Images](https://github.com/blixten85/scraper/actions/workflows/docker-build.yml/badge.svg)](https://github.com/blixten85/scraper/actions/workflows/docker-build.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **Produktionsredo web scraping-plattform med PostgreSQL, WebUI, REST API och prisbevakning.**
 
@@ -237,11 +237,8 @@ scraper_config (
 ```
 
 ---
-
 📝 Licens
 
-MIT - se Licens
-
+MIT - se [LICENSE](./LICENSE)
 ---
-
 Skapad av blixten85 🚀
