@@ -1,25 +1,57 @@
 version: "3.9"
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: scraper_db
+    restart: unless-stopped
+    # INGEN PUID/PGID här! Postgres använder 999:999 internt
+    environment:
+      POSTGRES_DB: scraper
+      POSTGRES_USER: scraper
+      POSTGRES_PASSWORD: scraper_password
+    volumes:
+      - ${DOCKER}/scraper/postgres:/var/lib/postgresql/data
+    networks:
+      - scraper_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scraper"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   scraper:
     image: ghcr.io/blixten85/scraper:latest
     container_name: scraper_engine
     restart: unless-stopped
     pull_policy: always
+    user: "${PUID}:${PGID}"  # <-- VIKTIGT!
     security_opt:
       - no-new-privileges:true
     environment:
       TZ: ${TZ}
       PUID: ${PUID}
       PGID: ${PGID}
-      SCRAPER_DATA_PATH: /data
+      DB_HOST: postgres
+      DB_NAME: scraper
+      DB_USER: scraper
+      DB_PASSWORD: scraper_password
       CONCURRENT_PAGES: ${CONCURRENT_PAGES:-3}
       HEADLESS: ${HEADLESS:-true}
       SCRAPE_INTERVAL: ${SCRAPE_INTERVAL:-3600}
     volumes:
-      - ${DOCKER}/scraper:/data
       - ${DOCKER}/scraper/logs:/logs
-      - ${DOCKER}/scraper/playwright-cache:/root/.cache/ms-playwright  # ← NY!
+      - ${DOCKER}/scraper/playwright-cache:/root/.cache/ms-playwright
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - scraper_net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
       interval: 60s
@@ -30,31 +62,32 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    network_mode: "service:gluetun"
-    depends_on:
-      - gluetun
+    # Om du vill köra via gluetun (VPN), lägg till:
+    # network_mode: "service:gluetun"
+    # och kommentera ut networks ovan
 
   api:
     image: ghcr.io/blixten85/scraper-api:latest
     container_name: scraper_api
     restart: unless-stopped
     pull_policy: always
+    user: "${PUID}:${PGID}"
     security_opt:
       - no-new-privileges:true
     environment:
       TZ: ${TZ}
       PUID: ${PUID}
       PGID: ${PGID}
-      DB_FILE: /data/products.db
-    volumes:
-      - ${DOCKER}/scraper:/data:ro
-    #ports:
-      #- "${API_PORT:-8000}:8000"
+      DB_HOST: postgres
+      DB_NAME: scraper
+      DB_USER: scraper
+      DB_PASSWORD: scraper_password
+      API_KEY: ${API_KEY:-changeme}
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - scraper_net
-    depends_on:
-      scraper:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
@@ -65,29 +98,30 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    labels:
+      swag: "enable"
+      swag_address: "scraper_api"
+      swag_port: "8000"
+      swag_url: "api.scraper.${DOMAIN}"
 
   webui:
     image: ghcr.io/blixten85/scraper-webui:latest
     container_name: scraper_webui
     restart: unless-stopped
     pull_policy: always
+    user: "${PUID}:${PGID}"
     security_opt:
       - no-new-privileges:true
     environment:
       TZ: ${TZ}
       PUID: ${PUID}
       PGID: ${PGID}
-      DB_FILE: /data/products.db
-      SCRAPER_API: http://gluetun:5001   # <-- VIKTIGT! Använd gluetun!
-    volumes:
-      - ${DOCKER}/scraper:/data:rw
-    #ports:
-      #- "${WEBUI_PORT:-3000}:3000"
+      SCRAPER_API: http://scraper_api:8000  # <-- FIXAT! Inte gluetun längre
+      API_KEY: ${API_KEY:-changeme}
+    depends_on:
+      - api
     networks:
       - scraper_net
-    depends_on:
-      - scraper
-      - api
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/health')"]
       interval: 30s
@@ -109,28 +143,29 @@ services:
     container_name: scraper_alerts
     restart: unless-stopped
     pull_policy: always
+    user: "${PUID}:${PGID}"
     security_opt:
       - no-new-privileges:true
     environment:
       TZ: ${TZ}
       PUID: ${PUID}
       PGID: ${PGID}
-      DB_FILE: /data/products.db
+      DB_HOST: postgres
+      DB_NAME: scraper
+      DB_USER: scraper
+      DB_PASSWORD: scraper_password
       DISCORD_WEBHOOK_FILE: /run/secrets/discord_webhook
       CHECK_INTERVAL: ${ALERT_CHECK_INTERVAL:-1800}
       MIN_DROP_PERCENT: ${MIN_DROP_PERCENT:-5}
       MIN_DROP_AMOUNT: ${MIN_DROP_AMOUNT:-100}
       COOLDOWN_HOURS: ${COOLDOWN_HOURS:-24}
-    volumes:
-      - ${DOCKER}/scraper:/data
-      - ${DOCKER}/scraper/logs:/logs
     secrets:
       - discord_webhook
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - scraper_net
-    depends_on:
-      scraper:
-        condition: service_healthy
     logging:
       driver: json-file
       options:

@@ -1,38 +1,64 @@
-## 🕷️ WEB Scraper Playform
+Här är en helt ny, uppdaterad README.md som ersätter din nuvarande:
+
+```markdown
+# 🕷️ Web Scraper Platform
+
 [![Build and Push Images](https://github.com/blixten85/scraper/actions/workflows/docker-build.yml/badge.svg)](https://github.com/blixten85/scraper/actions/workflows/docker-build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Lättviktig, konfigurerbar web scraping-plattform med WebUI, API och prisbevakning.
+**Produktionsredo web scraping-plattform med PostgreSQL, WebUI, REST API och prisbevakning.**
+
+---
 
 ## ✨ Funktioner
 
-- 🔍 Multi-site scraping - Skrapa valfri e-handelssida med CSS-selektorer
-- 🎨 WebUI - Konfigurera och övervaka via webbgränssnitt (port 3000)
-- 📡 REST API - Hämta data programmatiskt (port 8000)
-- 📉 Prisbevakning - Discord-notiser vid prisfall
-- 💾 SQLite - Enkel, filbaserad databas - ingen extra infrastruktur
-- 🐳 Docker - Kör allt med en docker compose up
+| Funktion | Beskrivning |
+|----------|-------------|
+| 🔍 **Multi-site scraping** | Skrapa valfri e-handelssida med CSS-selektorer |
+| 🎨 **WebUI** | Konfigurera och övervaka via webbgränssnitt |
+| 📡 **REST API** | Hämta data programmatiskt med API-nyckel |
+| 🔔 **Prisbevakning** | Discord-notiser vid prisfall |
+| 🐘 **PostgreSQL** | Robust databas för produktion |
+| 🐳 **Docker** | Kör allt med en docker compose up |
+| 🔒 **Säkerhet** | API-autentisering, secrets, no-new-privileges |
+
+---
 
 ## 🚀 Snabbstart - Docker (Full plattform)
 
 ```bash
+# 1. Klona repot
 git clone https://github.com/blixten85/scraper.git
 cd scraper
-mkdir -p secrets data logs
-echo "din-discord-webhook-url" > secrets/discord_webhook.txt
+
+# 2. Skapa .env-fil med dina inställningar
+cp .env.example .env
+nano .env
+
+# 3. Skapa mappar och sätt rättigheter
+mkdir -p ${DOCKER}/scraper/{logs,postgres,playwright-cache}
+sudo chown -R 999:999 ${DOCKER}/scraper/postgres
+
+# 4. Skapa Discord webhook (valfritt)
+echo "din-discord-webhook-url" > ${CONFIG}/.secrets/discord_webhook
+
+# 5. Starta
 docker compose up -d
+
+# 6. Öppna WebUI
+# http://localhost:3000
 ```
 
-Öppna sedan: `http://localhost:3000`
+---
 
-## 🚀 Snabbstart - Enkel Python-scraper (bara .txt)
+🚀 Snabbstart - Enkel Python-scraper (bara .txt)
 
 ```bash
 pip install playwright
 playwright install chromium
 ```
 
-Redigera `simple_scraper.py` och ändra URLen:
+Redigera simple_scraper.py:
 
 ```python
 CONFIG = {
@@ -48,57 +74,98 @@ Kör:
 python simple_scraper.py
 ```
 
-### Färdiga konfigurationer
+Färdiga konfigurationer
 
-- `Inet.se:` product_selector="a[href*='/produkt/']", price_selector="text=/\d[\d\s]*\s*kr/"
-- `Komplett.se:` product_selector="div.product-list-item", price_selector="span.product-price-now"
-- `Webhallen.com:` product_selector="div.product-item", price_selector="span.price"
+Sajt product_selector price_selector
+Inet.se a[href*='/produkt/'] text=/\d[\d\s]*\s*kr/
+Komplett.se div.product-list-item span.product-price-now
+Webhallen.com div.product-item span.price
 
-## 📦 Tjänster (Docker)
+---
 
-| Tjänst | Port | Beskrivning |
-|--------|-----|-----------|
-| scraper_engine | 5001 | Huvudmotor - skrapar sajter |
-| scraper_api | 8000 | REST API + Swagger docs |
-| scraper_webui | 3000 | Webbgränssnitt |
-| scraper_alerts | - | Discord-notiser |
+📦 Tjänster (Docker)
 
-## 📡 API Exempel
+Tjänst Port Beskrivning
+scraper_db 5432 (intern) PostgreSQL-databas
+scraper_engine 5001 (intern) Huvudmotor - skrapar sajter
+scraper_api 8000 REST API + Swagger docs
+scraper_webui 3000 Webbgränssnitt
+scraper_alerts - Discord-notiser
+
+---
+
+🔐 Generera API-nyckel och lösenord
+
+API-nyckel
+
+```bash
+# Generera en slumpmässig API-nyckel
+openssl rand -base64 48
+```
+
+Databaslösenord
+
+```bash
+# Generera ett säkert lösenord
+openssl rand -hex 16
+```
+
+Discord Webhook
+
+1. Gå till din Discord-server → Kanalkugghjul → Integrationer → Webhooks
+2. Skapa ny webhook och kopiera URL:en
+3. Spara: echo "url" > ${CONFIG}/.secrets/discord_webhook
+
+---
+
+📡 API Exempel
+
+OBS: API:et kräver X-API-Key header för alla endpoints utom /health och /docs.
 
 ```bash
 # Hämta alla produkter
-curl http://localhost:8000/products
+curl -H "X-API-Key: ${API_KEY}" http://localhost:8000/products
 
-# Söck produkter
-curl "http://localhost:8000/products?search=RTX"
+# Sök produkter
+curl -H "X-API-Key: ${API_KEY}" "http://localhost:8000/products?search=RTX"
 
 # Hämta prisfall
-curl http://localhost:8000/deals?min_drop_percent=10
+curl -H "X-API-Key: ${API_KEY}" "http://localhost:8000/deals?min_drop_percent=10"
 
 # Exportera till CSV
-curl http://localhost:8000/export/csv > produkter.csv
+curl -H "X-API-Key: ${API_KEY}" http://localhost:8000/export/csv > produkter.csv
 ```
 
-API-dokumentation: `http://localhost:8000/docs`
+API-dokumentation: http://localhost:8000/docs
 
-## 🔧 Konfiguration (.env)
+---
+
+🔧 Konfiguration (.env)
 
 ```bash
 # =========================
-# DATA DIRECTORY
+# SÖKVÄGAR
 # =========================
 DOCKER=/path/to/docker/data
 CONFIG=/path/to/config
+DOMAIN=example.com
 
 # =========================
-# SCRAPER CONFIGURATION
+# ANVÄNDARE
+# =========================
+PUID=1000
+PGID=1000
+TZ=Europe/Stockholm
+
+# =========================
+# SCRAPER
 # =========================
 CONCURRENT_PAGES=3
 HEADLESS=true
 SCRAPE_INTERVAL=3600
 
 # =========================
-# ALERTS CONFIGURATION
+# ALERTS
 # =========================
 ALERT_CHECK_INTERVAL=1800
 MIN_DROP_PERCENT=5
@@ -106,165 +173,78 @@ MIN_DROP_AMOUNT=100
 COOLDOWN_HOURS=24
 
 # =========================
-# PORTS
+# SÄKERHET
 # =========================
-WEBUI_PORT=3000
-API_PORT=8000
-DOMAIN=example.com
+API_KEY=din-genererade-api-nyckel-här
 ```
 
-## 📜 docker-compose.yml
+---
+
+🛠️ Felsökning
+
+Postgres startar inte
 
 ```bash
-version: "3.9"
-
-services:
-  scraper:
-    image: ghcr.io/blixten85/scraper:latest
-    container_name: scraper_engine
-    restart: unless-stopped
-    pull_policy: always
-    security_opt:
-      - no-new-privileges:true
-    environment:
-      TZ: ${TZ}
-      PUID: ${PUID}
-      PGID: ${PGID}
-      SCRAPER_DATA_PATH: /data
-      CONCURRENT_PAGES: ${CONCURRENT_PAGES:-3}
-      HEADLESS: ${HEADLESS:-true}
-      SCRAPE_INTERVAL: ${SCRAPE_INTERVAL:-3600}
-    volumes:
-      - ${DOCKER}/scraper:/data
-      - ${DOCKER}/scraper/logs:/logs
-      - ${DOCKER}/scraper/playwright-cache:/root/.cache/ms-playwright  # ← NY!
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    network_mode: "service:gluetun"
-    depends_on:
-      - gluetun
-
-  api:
-    image: ghcr.io/blixten85/scraper-api:latest
-    container_name: scraper_api
-    restart: unless-stopped
-    pull_policy: always
-    security_opt:
-      - no-new-privileges:true
-    environment:
-      TZ: ${TZ}
-      PUID: ${PUID}
-      PGID: ${PGID}
-      DB_FILE: /data/products.db
-    volumes:
-      - ${DOCKER}/scraper:/data:ro
-    #ports:
-      #- "${API_PORT:-8000}:8000"
-    networks:
-      - scraper_net
-    depends_on:
-      scraper:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  webui:
-    image: ghcr.io/blixten85/scraper-webui:latest
-    container_name: scraper_webui
-    restart: unless-stopped
-    pull_policy: always
-    security_opt:
-      - no-new-privileges:true
-    environment:
-      TZ: ${TZ}
-      PUID: ${PUID}
-      PGID: ${PGID}
-      DB_FILE: /data/products.db
-      SCRAPER_API: http://gluetun:5001   # <-- VIKTIGT! Använd gluetun!
-    volumes:
-      - ${DOCKER}/scraper:/data:rw
-    #ports:
-      #- "${WEBUI_PORT:-3000}:3000"
-    networks:
-      - scraper_net
-    depends_on:
-      - scraper
-      - api
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/health')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    labels:
-      swag: "enable"
-      swag_address: "scraper_webui"
-      swag_port: "3000"
-      swag_url: "scraper.${DOMAIN}"
-
-  alerts:
-    image: ghcr.io/blixten85/scraper-alerts:latest
-    container_name: scraper_alerts
-    restart: unless-stopped
-    pull_policy: always
-    security_opt:
-      - no-new-privileges:true
-    environment:
-      TZ: ${TZ}
-      PUID: ${PUID}
-      PGID: ${PGID}
-      DB_FILE: /data/products.db
-      DISCORD_WEBHOOK_FILE: /run/secrets/discord_webhook
-      CHECK_INTERVAL: ${ALERT_CHECK_INTERVAL:-1800}
-      MIN_DROP_PERCENT: ${MIN_DROP_PERCENT:-5}
-      MIN_DROP_AMOUNT: ${MIN_DROP_AMOUNT:-100}
-      COOLDOWN_HOURS: ${COOLDOWN_HOURS:-24}
-    volumes:
-      - ${DOCKER}/scraper:/data
-      - ${DOCKER}/scraper/logs:/logs
-    secrets:
-      - discord_webhook
-    networks:
-      - scraper_net
-    depends_on:
-      scraper:
-        condition: service_healthy
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-networks:
-  scraper_net:
-    driver: bridge
-    name: scraper_net
-
-secrets:
-  discord_webhook:
-    file: ${CONFIG}/.secrets/discord_webhook
+# Kontrollera rättigheter
+sudo chown -R 999:999 ${DOCKER}/scraper/postgres
 ```
 
-## 📝 Licens
+API:et svarar med 401 Unauthorized
 
-MIT - se [Licens](Licens)
+```bash
+# Kontrollera att du skickar med rätt header
+curl -H "X-API-Key: ${API_KEY}" http://localhost:8000/products
+```
+
+Inga produkter skrapas
+
+```bash
+# Testa selektorerna via WebUI (Testa-knappen)
+# eller kolla loggarna:
+docker logs scraper_engine --tail 50
+```
+
+---
+
+📁 Databasstruktur
+
+```sql
+products (
+  id SERIAL PRIMARY KEY,
+  url TEXT UNIQUE,
+  title TEXT,
+  current_price INTEGER,
+  first_seen TIMESTAMP,
+  last_updated TIMESTAMP,
+  site_config_id INTEGER
+)
+
+price_history (
+  id SERIAL PRIMARY KEY,
+  product_id INTEGER REFERENCES products(id),
+  price INTEGER,
+  timestamp TIMESTAMP
+)
+
+scraper_config (
+  id SERIAL PRIMARY KEY,
+  name TEXT UNIQUE,
+  base_url TEXT,
+  product_selector TEXT,
+  title_selector TEXT,
+  price_selector TEXT,
+  link_selector TEXT,
+  enabled INTEGER DEFAULT 1,
+  ...
+)
+```
+
+---
+
+📝 Licens
+
+MIT - se Licens
+
+---
+
+Skapad av blixten85 🚀

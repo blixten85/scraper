@@ -1,26 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Generiskt API för prisdata
+PostgreSQL-baserat API - Produktionsversion
 """
 
-import sqlite3
 import os
 import logging
 import sys
 import json
 from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+import psycopg2
+import psycopg2.extras
 import csv
 from io import StringIO
 
 # === Konfiguration ===
-CONFIG_FILE = os.getenv('CONFIG_FILE', '/config/scraper_config.json')
-DB_FILE = os.getenv('DB_FILE', '/data/products.db')
-SQLITE_BUSY_TIMEOUT = int(os.getenv('SQLITE_BUSY_TIMEOUT', '5000'))
+DB_HOST = os.getenv('DB_HOST', 'postgres')
+DB_NAME = os.getenv('DB_NAME', 'scraper')
+DB_USER = os.getenv('DB_USER', 'scraper')
+DB_PASSWORD = os.getenv('DB_PASSWORD', 'scraper_password')
+API_KEY = os.getenv('API_KEY', 'changeme')
 
 # === Loggning ===
 logging.basicConfig(
@@ -33,8 +36,8 @@ logger = logging.getLogger(__name__)
 # === FastAPI app ===
 app = FastAPI(
     title="Web Scraper API",
-    description="Generiskt API för prisbevakning",
-    version="2.0.0",
+    description="Produktions-API för prisbevakning",
+    version="3.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -48,71 +51,49 @@ app.add_middleware(
 )
 
 
-def load_config():
-    """Ladda konfiguration"""
-    try:
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except:
-        return {"name": "Unknown"}
+# === API Key Middleware ===
+@app.middleware("http")
+async def check_api_key(request: Request, call_next):
+    # Tillåt health check och docs utan API-nyckel
+    if request.url.path in ["/health", "/docs", "/openapi.json", "/", "/redoc"]:
+        return await call_next(request)
+    
+    if request.headers.get("X-API-Key") != API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized - Invalid API Key")
+    
+    return await call_next(request)
 
 
 def get_db():
-    """Hämta databasanslutning"""
-    try:
-        if not os.path.exists(DB_FILE):
-            raise FileNotFoundError(f"Databasfil saknas: {DB_FILE}")
-        
-        conn = sqlite3.connect(DB_FILE, timeout=10)
-        conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT};")
-        conn.row_factory = sqlite3.Row
-        return conn
-    except Exception as e:
-        logger.error(f"DB-fel: {e}")
-        raise HTTPException(status_code=503, detail="Databas ej tillgänglig")
+    """PostgreSQL-anslutning"""
+    return psycopg2.connect(
+        host=DB_HOST,
+        database=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        connect_timeout=10
+    )
 
 
 @app.get("/", tags=["Root"])
 def root():
-    """Hälsokontroll"""
-    config = load_config()
     return {
-        "message": f"Web Scraper API - {config.get('name', 'Unknown')}",
+        "message": "Web Scraper API",
         "status": "running",
-        "version": "2.0.0"
+        "version": "3.0.0"
     }
 
 
 @app.get("/health", tags=["Health"])
 def health_check():
-    """Detaljerad hälsokontroll"""
     try:
         conn = get_db()
         cur = conn.cursor()
         cur.execute("SELECT 1")
         conn.close()
-        
-        db_exists = os.path.exists(DB_FILE)
-        db_size = os.path.getsize(DB_FILE) / (1024 * 1024) if db_exists else 0
-        
-        return {
-            "status": "healthy",
-            "database": "connected",
-            "database_size_mb": round(db_size, 2),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        return {"status": "healthy", "database": "connected", "timestamp": datetime.utcnow().isoformat()}
     except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-
-
-@app.get("/config", tags=["Configuration"])
-def get_config():
-    """Hämta aktuell konfiguration"""
-    return load_config()
+        return {"status": "unhealthy", "error": str(e), "timestamp": datetime.utcnow().isoformat()}
 
 
 @app.get("/products", tags=["Products"])
@@ -123,36 +104,32 @@ def get_products(
     sort: str = Query("last_updated"),
     order: str = Query("desc")
 ):
-    """Hämta produkter med paginering och sökning"""
     conn = get_db()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
-    # Validera sortering
     allowed_sort = ["last_updated", "current_price", "title", "first_seen"]
     if sort not in allowed_sort:
         sort = "last_updated"
     
     order_clause = "DESC" if order.lower() == "desc" else "ASC"
     
-    # Bygg query
     query = "SELECT id, title, url, current_price, first_seen, last_updated FROM products"
     count_query = "SELECT COUNT(*) FROM products"
     params = []
     
     if search:
-        query += " WHERE title LIKE ?"
-        count_query += " WHERE title LIKE ?"
+        query += " WHERE title ILIKE %s"
+        count_query += " WHERE title ILIKE %s"
         params.append(f"%{search}%")
     
-    # Hämta totalt antal
     cur.execute(count_query, params)
-    total = cur.fetchone()[0]
+    total = cur.fetchone()['count']
     
-    # Hämta produkter
-    query += f" ORDER BY {sort} {order_clause} LIMIT ? OFFSET ?"
-    cur.execute(query, params + [limit, offset])
+    query += f" ORDER BY {sort} {order_clause} LIMIT %s OFFSET %s"
+    params.extend([limit, offset])
     
-    products = [dict(row) for row in cur.fetchall()]
+    cur.execute(query, params)
+    products = cur.fetchall()
     conn.close()
     
     return {
@@ -165,15 +142,10 @@ def get_products(
 
 @app.get("/products/{product_id}", tags=["Products"])
 def get_product(product_id: int):
-    """Hämta enskild produkt"""
     conn = get_db()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
-    cur.execute("""
-        SELECT id, title, url, current_price, first_seen, last_updated
-        FROM products WHERE id = ?
-    """, (product_id,))
-    
+    cur.execute("SELECT * FROM products WHERE id = %s", (product_id,))
     row = cur.fetchone()
     conn.close()
     
@@ -185,32 +157,28 @@ def get_product(product_id: int):
 
 @app.get("/products/{product_id}/history", tags=["Products"])
 def get_price_history(product_id: int, limit: int = Query(100, le=1000)):
-    """Hämta prishistorik"""
     conn = get_db()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
-    # Kolla om produkten finns
-    cur.execute("SELECT title FROM products WHERE id = ?", (product_id,))
+    cur.execute("SELECT title FROM products WHERE id = %s", (product_id,))
     product = cur.fetchone()
     
     if not product:
         raise HTTPException(status_code=404, detail="Produkt ej hittad")
     
-    # Hämta historik
     cur.execute("""
         SELECT price, timestamp
         FROM price_history
-        WHERE product_id = ?
+        WHERE product_id = %s
         ORDER BY timestamp DESC
-        LIMIT ?
+        LIMIT %s
     """, (product_id, limit))
     
-    history = [dict(row) for row in cur.fetchall()]
+    history = cur.fetchall()
     
-    # Statistik
     cur.execute("""
         SELECT MIN(price) as min_price, MAX(price) as max_price, AVG(price) as avg_price
-        FROM price_history WHERE product_id = ?
+        FROM price_history WHERE product_id = %s
     """, (product_id,))
     stats = cur.fetchone()
     
@@ -218,7 +186,7 @@ def get_price_history(product_id: int, limit: int = Query(100, le=1000)):
     
     return {
         "product_id": product_id,
-        "product_title": product["title"],
+        "product_title": product['title'],
         "history": history,
         "statistics": dict(stats) if stats else {}
     }
@@ -231,51 +199,49 @@ def get_deals(
     limit: int = Query(50, le=100),
     hours: int = Query(168, ge=1)
 ):
-    """Hämta bästa prisnedsättningar"""
     conn = get_db()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
-    cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
-    
+    # Använder window function (snabbare!)
     cur.execute("""
-        SELECT 
-            p.id, p.title, p.url,
-            ph1.price AS old_price,
-            ph2.price AS new_price,
-            ph1.timestamp AS old_date,
-            ph2.timestamp AS new_date
-        FROM products p
-        JOIN price_history ph1 ON p.id = ph1.product_id
-        JOIN price_history ph2 ON p.id = ph2.product_id
-        WHERE ph1.id < ph2.id
-        AND ph2.timestamp = (SELECT MAX(timestamp) FROM price_history WHERE product_id = p.id)
-        AND ph1.timestamp = (SELECT MAX(timestamp) FROM price_history 
-                            WHERE product_id = p.id AND id < ph2.id)
-        AND ph2.price < ph1.price
-        AND ph2.timestamp >= ?
-    """, (cutoff,))
+        SELECT *
+        FROM (
+            SELECT 
+                p.id,
+                p.title,
+                p.url,
+                ph.price AS new_price,
+                LAG(ph.price) OVER (PARTITION BY p.id ORDER BY ph.timestamp) AS old_price,
+                ph.timestamp AS new_date,
+                LAG(ph.timestamp) OVER (PARTITION BY p.id ORDER BY ph.timestamp) AS old_date
+            FROM products p
+            JOIN price_history ph ON p.id = ph.product_id
+            WHERE ph.timestamp >= NOW() - INTERVAL '%s hours'
+        ) t
+        WHERE old_price IS NOT NULL AND new_price < old_price
+    """, (hours,))
     
     deals = []
     for row in cur.fetchall():
-        drop_amount = row["old_price"] - row["new_price"]
-        drop_percent = (drop_amount / row["old_price"]) * 100
+        drop_amount = row['old_price'] - row['new_price']
+        drop_percent = (drop_amount / row['old_price']) * 100
         
         if drop_percent >= min_drop_percent and drop_amount >= min_drop_amount:
             deals.append({
-                "id": row["id"],
-                "title": row["title"],
-                "url": row["url"],
-                "old_price": row["old_price"],
-                "new_price": row["new_price"],
+                "id": row['id'],
+                "title": row['title'],
+                "url": row['url'],
+                "old_price": row['old_price'],
+                "new_price": row['new_price'],
                 "drop_amount": drop_amount,
                 "drop_percent": round(drop_percent, 1),
-                "old_date": row["old_date"],
-                "new_date": row["new_date"]
+                "old_date": row['old_date'].isoformat() if row['old_date'] else None,
+                "new_date": row['new_date'].isoformat() if row['new_date'] else None
             })
     
     conn.close()
     
-    deals.sort(key=lambda x: x["drop_percent"], reverse=True)
+    deals.sort(key=lambda x: x['drop_percent'], reverse=True)
     
     return {
         "deals": deals[:limit],
@@ -285,28 +251,30 @@ def get_deals(
 
 @app.get("/stats", tags=["Statistics"])
 def get_stats():
-    """Hämta statistik"""
     conn = get_db()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     cur.execute("SELECT COUNT(*) FROM products")
-    total_products = cur.fetchone()[0]
+    total_products = cur.fetchone()['count']
     
     cur.execute("SELECT COUNT(*) FROM price_history")
-    total_history = cur.fetchone()[0]
+    total_history = cur.fetchone()['count']
     
     cur.execute("""
         SELECT COUNT(DISTINCT product_id) 
         FROM price_history 
-        WHERE timestamp >= datetime('now', '-1 day')
+        WHERE timestamp >= NOW() - INTERVAL '1 day'
     """)
-    updated_24h = cur.fetchone()[0]
+    updated_24h = cur.fetchone()['count']
     
     cur.execute("SELECT AVG(current_price) FROM products")
-    avg_price = cur.fetchone()[0]
+    avg_price = cur.fetchone()['avg']
     
     cur.execute("SELECT MAX(timestamp) FROM price_history")
-    last_run = cur.fetchone()[0]
+    last_run = cur.fetchone()['max']
+    
+    cur.execute("SELECT COUNT(*) FROM scraper_config WHERE enabled = 1")
+    active_configs = cur.fetchone()['count']
     
     conn.close()
     
@@ -315,14 +283,13 @@ def get_stats():
         "total_price_records": total_history,
         "updated_24h": updated_24h,
         "average_price": round(avg_price, 2) if avg_price else 0,
-        "last_run": last_run,
-        "database_size_mb": round(os.path.getsize(DB_FILE) / (1024 * 1024), 2) if os.path.exists(DB_FILE) else 0
+        "last_run": last_run.isoformat() if last_run else None,
+        "active_configs": active_configs
     }
 
 
 @app.get("/export/csv", tags=["Export"])
 def export_csv():
-    """Exportera produkter som CSV"""
     conn = get_db()
     cur = conn.cursor()
     
@@ -336,14 +303,7 @@ def export_csv():
     writer.writerow(["ID", "Title", "URL", "Price (SEK)", "First Seen", "Last Updated"])
     
     for row in cur.fetchall():
-        writer.writerow([
-            row["id"],
-            row["title"],
-            row["url"],
-            row["current_price"],
-            row["first_seen"],
-            row["last_updated"]
-        ])
+        writer.writerow([row[0], row[1], row[2], row[3], row[4], row[5]])
     
     conn.close()
     output.seek(0)

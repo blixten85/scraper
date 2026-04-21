@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SQLite-baserad multi-site scraper - Optimerad version
+PostgreSQL-baserad multi-site scraper - Produktionsversion
 """
 
 import asyncio
@@ -12,26 +12,23 @@ import re
 import logging
 import sys
 import random
-import sqlite3
 import signal
 from urllib.parse import urljoin
 from playwright.async_api import async_playwright
 from flask import Flask, request, jsonify
 import threading
+import psycopg2
+import psycopg2.extras
 
 app = Flask(__name__)
 
 # === Konfiguration ===
-DATA_DIR = os.getenv('SCRAPER_DATA_PATH', '/data')
-LOG_DIR = f"{DATA_DIR}/logs"
+LOG_DIR = "/logs"
 SQLITE_BUSY_TIMEOUT = int(os.getenv('SQLITE_BUSY_TIMEOUT', '5000'))
 MAX_CONCURRENT = int(os.getenv('CONCURRENT_PAGES', '3'))
 HEADLESS = os.getenv('HEADLESS', 'true').lower() == 'true'
 SCRAPE_INTERVAL = int(os.getenv('SCRAPE_INTERVAL', '3600'))
 
-DB_FILE = f"{DATA_DIR}/products.db"
-
-os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
 
 logging.basicConfig(
@@ -52,43 +49,45 @@ write_lock = asyncio.Lock()
 
 
 def get_db():
-    conn = sqlite3.connect(DB_FILE, timeout=10, check_same_thread=False)
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA synchronous=NORMAL;")
-    conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT};")
-    conn.row_factory = sqlite3.Row
-    return conn
+    """PostgreSQL-anslutning"""
+    return psycopg2.connect(
+        host=os.getenv("DB_HOST", "postgres"),
+        database=os.getenv("DB_NAME", "scraper"),
+        user=os.getenv("DB_USER", "scraper"),
+        password=os.getenv("DB_PASSWORD", "scraper_password"),
+        connect_timeout=10
+    )
 
 
 def init_db():
+    """Initiera PostgreSQL-databas"""
     conn = get_db()
     cur = conn.cursor()
     
     cur.execute("""
     CREATE TABLE IF NOT EXISTS products (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         url TEXT UNIQUE,
         title TEXT,
         current_price INTEGER,
-        first_seen TIMESTAMP,
-        last_updated TIMESTAMP,
+        first_seen TIMESTAMP DEFAULT NOW(),
+        last_updated TIMESTAMP DEFAULT NOW(),
         site_config_id INTEGER
     )
     """)
     
     cur.execute("""
     CREATE TABLE IF NOT EXISTS price_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        product_id INTEGER,
+        id SERIAL PRIMARY KEY,
+        product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
         price INTEGER,
-        timestamp TIMESTAMP,
-        FOREIGN KEY (product_id) REFERENCES products(id)
+        timestamp TIMESTAMP DEFAULT NOW()
     )
     """)
     
     cur.execute("""
     CREATE TABLE IF NOT EXISTS scraper_config (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         name TEXT UNIQUE NOT NULL,
         base_url TEXT NOT NULL,
         product_selector TEXT NOT NULL,
@@ -102,15 +101,18 @@ def init_db():
         min_price INTEGER DEFAULT 0,
         max_price INTEGER DEFAULT 999999,
         categories TEXT DEFAULT '[]',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
     )
     """)
     
+    # Index för prestanda
     cur.execute("CREATE INDEX IF NOT EXISTS idx_products_url ON products(url)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_products_last_updated ON products(last_updated)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_price_history_product ON price_history(product_id)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_price_history_time ON price_history(timestamp)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_price_history_time ON price_history(timestamp DESC)")
     
+    # Default config
     cur.execute("SELECT COUNT(*) FROM scraper_config")
     if cur.fetchone()[0] == 0:
         cur.execute("""
@@ -127,14 +129,16 @@ def init_db():
     
     conn.commit()
     conn.close()
-    logger.info("Databas initierad")
+    logger.info("PostgreSQL-databas initierad")
 
 
 def load_configs():
+    """Ladda aktiva konfigurationer"""
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT * FROM scraper_config WHERE enabled = 1 ORDER BY name")
-    configs = [dict(row) for row in cur.fetchall()]
+    columns = [desc[0] for desc in cur.description]
+    configs = [dict(zip(columns, row)) for row in cur.fetchall()]
     conn.close()
     return configs
 
@@ -202,7 +206,7 @@ async def scrape_site(context, config):
                 if product:
                     async with write_lock:
                         write_buffer.append(product)
-                        if len(write_buffer) >= 50:
+                        if len(write_buffer) >= 20:  # <- MINSKAT från 50
                             await flush_buffer()
                     products_found += 1
             
@@ -224,6 +228,7 @@ async def scrape_site(context, config):
 
 
 async def flush_buffer():
+    """Spara buffrade produkter till PostgreSQL"""
     if not write_buffer:
         return
     
@@ -236,29 +241,29 @@ async def flush_buffer():
     
     for product in buffer_copy:
         try:
-            cur.execute("SELECT id, current_price FROM products WHERE url = ?", (product['url'],))
-            row = cur.fetchone()
+            cur.execute("""
+                INSERT INTO products (url, title, current_price, site_config_id, last_updated)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (url) DO UPDATE SET
+                    current_price = EXCLUDED.current_price,
+                    title = EXCLUDED.title,
+                    last_updated = EXCLUDED.last_updated
+                RETURNING id, (xmax = 0) AS is_new
+            """, (product['url'], product['title'], product['price'], product['site_config_id'], now))
             
-            if row:
-                product_id, old_price = row['id'], row['current_price']
-                if old_price != product['price']:
-                    cur.execute("UPDATE products SET current_price = ?, title = ?, last_updated = ? WHERE id = ?",
-                               (product['price'], product['title'], now, product_id))
-                    cur.execute("INSERT INTO price_history (product_id, price, timestamp) VALUES (?, ?, ?)",
-                               (product_id, product['price'], now))
-                    stats['updated'] += 1
-                else:
-                    cur.execute("UPDATE products SET last_updated = ? WHERE id = ?", (now, product_id))
-                    stats['skipped'] += 1
-            else:
-                cur.execute("""
-                    INSERT INTO products (url, title, current_price, first_seen, last_updated, site_config_id)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (product['url'], product['title'], product['price'], now, now, product['site_config_id']))
-                product_id = cur.lastrowid
-                cur.execute("INSERT INTO price_history (product_id, price, timestamp) VALUES (?, ?, ?)",
-                           (product_id, product['price'], now))
+            row = cur.fetchone()
+            product_id, is_new = row[0], row[1]
+            
+            cur.execute("""
+                INSERT INTO price_history (product_id, price, timestamp)
+                VALUES (%s, %s, %s)
+            """, (product_id, product['price'], now))
+            
+            if is_new:
                 stats['products'] += 1
+            else:
+                stats['updated'] += 1
+                
         except Exception as e:
             logger.error(f"DB-fel: {e}")
             stats['errors'] += 1
@@ -267,11 +272,24 @@ async def flush_buffer():
     conn.close()
 
 
+async def periodic_flush():
+    """Flusha buffern var 10:e sekund"""
+    while not shutdown_event.is_set():
+        await asyncio.sleep(10)
+        if write_buffer:
+            async with write_lock:
+                if write_buffer:
+                    await flush_buffer()
+
+
 async def run_scraper():
+    """Huvudfunktion"""
     configs = load_configs()
     if not configs:
         logger.warning("Inga aktiva konfigurationer")
         return
+    
+    flush_task = asyncio.create_task(periodic_flush())
     
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -289,6 +307,7 @@ async def run_scraper():
         await asyncio.gather(*tasks, return_exceptions=True)
         await browser.close()
     
+    flush_task.cancel()
     if write_buffer:
         await flush_buffer()
     
@@ -323,7 +342,8 @@ def get_configs():
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT * FROM scraper_config ORDER BY name")
-    configs = [dict(row) for row in cur.fetchall()]
+    columns = [desc[0] for desc in cur.description]
+    configs = [dict(zip(columns, row)) for row in cur.fetchall()]
     conn.close()
     return jsonify(configs)
 
@@ -338,7 +358,8 @@ def create_config():
             INSERT INTO scraper_config 
             (name, base_url, product_selector, title_selector, price_selector, link_selector,
              pagination_type, pagination_selector, max_pages, min_price, max_price, categories)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
         """, (
             data['name'], data['base_url'],
             data['product_selector'], data['title_selector'],
@@ -350,9 +371,10 @@ def create_config():
             data.get('max_price', 999999),
             json.dumps(data.get('categories', []))
         ))
+        config_id = cur.fetchone()[0]
         conn.commit()
-        return jsonify({'status': 'success', 'id': cur.lastrowid})
-    except sqlite3.IntegrityError:
+        return jsonify({'status': 'success', 'id': config_id})
+    except psycopg2.errors.UniqueViolation:
         return jsonify({'status': 'error', 'message': 'Name already exists'}), 400
     finally:
         conn.close()
@@ -365,11 +387,11 @@ def update_config(config_id):
     cur = conn.cursor()
     cur.execute("""
         UPDATE scraper_config SET
-            name = ?, base_url = ?, product_selector = ?, title_selector = ?,
-            price_selector = ?, link_selector = ?, pagination_type = ?,
-            pagination_selector = ?, max_pages = ?, enabled = ?,
-            min_price = ?, max_price = ?, categories = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
+            name = %s, base_url = %s, product_selector = %s, title_selector = %s,
+            price_selector = %s, link_selector = %s, pagination_type = %s,
+            pagination_selector = %s, max_pages = %s, enabled = %s,
+            min_price = %s, max_price = %s, categories = %s, updated_at = NOW()
+        WHERE id = %s
     """, (
         data['name'], data['base_url'],
         data['product_selector'], data['title_selector'],
@@ -392,7 +414,7 @@ def update_config(config_id):
 def delete_config(config_id):
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("UPDATE scraper_config SET enabled = 0 WHERE id = ?", (config_id,))
+    cur.execute("UPDATE scraper_config SET enabled = 0 WHERE id = %s", (config_id,))
     conn.commit()
     conn.close()
     return jsonify({'status': 'success'})
