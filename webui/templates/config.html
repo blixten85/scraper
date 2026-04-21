@@ -6,495 +6,57 @@
     <title>Konfiguration - Web Scraper</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">
-            <a class="navbar-brand" href="/">
-                <i class="bi bi-cloud-download"></i> Web Scraper Pro
-            </a>
+            <a class="navbar-brand" href="/">Web Scraper Pro</a>
             <div class="navbar-nav ms-auto">
-                <a class="nav-link" href="/"><i class="bi bi-speedometer2"></i> Dashboard</a>
-                <a class="nav-link active" href="/config"><i class="bi bi-gear"></i> Konfiguration</a>
-                <a class="nav-link" href="/api/docs" target="_blank"><i class="bi bi-code-square"></i> API</a>
+                <a class="nav-link" href="/">Dashboard</a>
+                <a class="nav-link active" href="/config">Konfiguration</a>
             </div>
         </div>
     </nav>
 
-    <div class="container-fluid mt-4">
-        <div class="row">
-            <div class="col-12">
-                <h1 class="mb-4">Konfiguration</h1>
-            </div>
+    <div class="container mt-4">
+        <h1>Konfiguration</h1>
+        
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            Konfigurationen hanteras via API:et. 
+            <a href="/api/docs" target="_blank">Öppna API-dokumentation</a>
         </div>
 
-        <form id="configForm">
-            <div class="row">
-                <!-- Left column -->
-                <div class="col-md-8">
-                    <!-- General Settings -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0">Grundinställningar</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="mb-3">
-                                <label class="form-label">Namn på scraper</label>
-                                <input type="text" class="form-control" name="name" 
-                                       value="{{ config.name }}" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Webbplats URL</label>
-                                <input type="url" class="form-control" name="url" 
-                                       value="{{ config.url }}" required>
-                            </div>
-                            <div class="mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="enabled" 
-                                           {% if config.enabled %}checked{% endif %}>
-                                    <label class="form-check-label">Aktiverad</label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- CSS Selectors -->
-                    <div class="card mb-4">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">CSS-selektorer</h5>
-                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="testSelectors()">
-                                <i class="bi bi-play-fill"></i> Testa selektorer
-                            </button>
-                        </div>
-                        <div class="card-body">
-                            <div class="alert alert-info">
-                                <i class="bi bi-info-circle"></i>
-                                Ange CSS-selektorer för att hitta produkter på sidan.
-                                <a href="#" onclick="loadTemplate()">Ladda mall för känd sajt</a>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Produkt-container</label>
-                                <input type="text" class="form-control" name="selectors[product_container]" 
-                                       value="{{ config.selectors.product_container }}" required>
-                                <small class="text-muted">Selektor för varje produktkort</small>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Produktlänk</label>
-                                <input type="text" class="form-control" name="selectors[product_link]" 
-                                       value="{{ config.selectors.product_link }}" required>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Produkttitel</label>
-                                <input type="text" class="form-control" name="selectors[product_title]" 
-                                       value="{{ config.selectors.product_title }}" required>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Pris</label>
-                                <input type="text" class="form-control" name="selectors[product_price]" 
-                                       value="{{ config.selectors.product_price }}" required>
-                                <small class="text-muted">Kan vara CSS-selektor eller regex: text=/mönster/</small>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Nästa sida</label>
-                                <input type="text" class="form-control" name="selectors[next_page]" 
-                                       value="{{ config.selectors.next_page }}">
-                                <small class="text-muted">Lämna tomt om paginering hanteras via URL</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Pagination -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0">Paginering</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="mb-3">
-                                <label class="form-label">Typ</label>
-                                <select class="form-select" name="pagination[type]">
-                                    <option value="url_param" {% if config.pagination.type == 'url_param' %}selected{% endif %}>
-                                        URL-parameter (?page=1)
-                                    </option>
-                                    <option value="next_button" {% if config.pagination.type == 'next_button' %}selected{% endif %}>
-                                        Nästa-knapp
-                                    </option>
-                                    <option value="infinite_scroll" {% if config.pagination.type == 'infinite_scroll' %}selected{% endif %}>
-                                        Oändlig scroll
-                                    </option>
-                                </select>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Parameter-namn</label>
-                                <input type="text" class="form-control" name="pagination[param]" 
-                                       value="{{ config.pagination.param }}" placeholder="page">
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Max antal sidor</label>
-                                <input type="number" class="form-control" name="pagination[max_pages]" 
-                                       value="{{ config.pagination.max_pages }}" min="1" max="1000">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Categories -->
-                    <div class="card mb-4">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">Kategorier att skrapa</h5>
-                            <button type="button" class="btn btn-sm btn-outline-success" onclick="addCategory()">
-                                <i class="bi bi-plus"></i> Lägg till
-                            </button>
-                        </div>
-                        <div class="card-body">
-                            <div id="categoriesList">
-                                {% for category in config.categories %}
-                                <div class="input-group mb-2 category-item">
-                                    <input type="url" class="form-control" name="categories[]" 
-                                           value="{{ category }}" placeholder="https://...">
-                                    <button class="btn btn-outline-danger" type="button" onclick="removeCategory(this)">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                                {% endfor %}
-                                {% if not config.categories %}
-                                <div class="input-group mb-2 category-item">
-                                    <input type="url" class="form-control" name="categories[]" 
-                                           placeholder="https://...">
-                                    <button class="btn btn-outline-danger" type="button" onclick="removeCategory(this)">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                                {% endif %}
-                            </div>
-                            <small class="text-muted">Lämna tomt för att skrapa hela sajten</small>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Right column -->
-                <div class="col-md-4">
-                    <!-- Filters -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0">Filter</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="filters[exclude_out_of_stock]" 
-                                           {% if config.filters.exclude_out_of_stock %}checked{% endif %}>
-                                    <label class="form-check-label">Exkludera slut i lager</label>
-                                </div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Minsta pris (kr)</label>
-                                <input type="number" class="form-control" name="filters[min_price]" 
-                                       value="{{ config.filters.min_price }}" min="0">
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Högsta pris (kr)</label>
-                                <input type="number" class="form-control" name="filters[max_price]" 
-                                       value="{{ config.filters.max_price }}" min="0">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Alert Settings -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0">Prisbevakning</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="alerts[enabled]" 
-                                           {% if config.alerts.enabled %}checked{% endif %}>
-                                    <label class="form-check-label">Aktivera prisbevakning</label>
-                                </div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Minsta % prisfall</label>
-                                <input type="number" class="form-control" name="alerts[min_drop_percent]" 
-                                       value="{{ config.alerts.min_drop_percent }}" min="0" max="100" step="0.1">
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Minsta prisfall (kr)</label>
-                                <input type="number" class="form-control" name="alerts[min_drop_amount]" 
-                                       value="{{ config.alerts.min_drop_amount }}" min="0">
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Cooldown (timmar)</label>
-                                <input type="number" class="form-control" name="alerts[cooldown_hours]" 
-                                       value="{{ config.alerts.cooldown_hours }}" min="0">
-                                <small class="text-muted">Minsta tid mellan notiser för samma produkt</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Notifications -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0">Notifieringar</h5>
-                        </div>
-                        <div class="card-body">
-                            <!-- Discord -->
-                            <div class="mb-3">
-                                <label class="form-label">
-                                    <i class="bi bi-discord"></i> Discord Webhook
-                                </label>
-                                <input type="url" class="form-control" 
-                                       name="alerts[notifications][discord][webhook]" 
-                                       value="{{ config.alerts.notifications.discord.webhook }}"
-                                       placeholder="https://discord.com/api/webhooks/...">
-                            </div>
-                            
-                            <!-- Slack -->
-                            <div class="mb-3">
-                                <label class="form-label">
-                                    <i class="bi bi-slack"></i> Slack Webhook
-                                </label>
-                                <input type="url" class="form-control" 
-                                       name="alerts[notifications][slack][webhook]" 
-                                       value="{{ config.alerts.notifications.slack.webhook }}"
-                                       placeholder="https://hooks.slack.com/services/...">
-                            </div>
-                            
-                            <!-- Telegram -->
-                            <div class="mb-3">
-                                <label class="form-label">
-                                    <i class="bi bi-telegram"></i> Telegram
-                                </label>
-                                <input type="text" class="form-control mb-2" 
-                                       name="alerts[notifications][telegram][bot_token]" 
-                                       value="{{ config.alerts.notifications.telegram.bot_token }}"
-                                       placeholder="Bot Token">
-                                <input type="text" class="form-control" 
-                                       name="alerts[notifications][telegram][chat_id]" 
-                                       value="{{ config.alerts.notifications.telegram.chat_id }}"
-                                       placeholder="Chat ID">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Schedule -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0">Schema</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="mb-3">
-                                <label class="form-label">Intervall (sekunder)</label>
-                                <input type="number" class="form-control" name="schedule[interval]" 
-                                       value="{{ config.schedule.interval }}" min="300" max="86400">
-                                <small class="text-muted">Hur ofta scraping ska köras</small>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="schedule[enabled]" 
-                                           {% if config.schedule.enabled %}checked{% endif %}>
-                                    <label class="form-check-label">Automatisk körning</label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Aktiva konfigurationer</h5>
             </div>
-
-            <!-- Save Button -->
-            <div class="row mb-4">
-                <div class="col-12">
-                    <button type="submit" class="btn btn-primary btn-lg">
-                        <i class="bi bi-save"></i> Spara konfiguration
-                    </button>
-                    <button type="button" class="btn btn-secondary btn-lg" onclick="window.location.href='/'">
-                        <i class="bi bi-x"></i> Avbryt
-                    </button>
-                </div>
-            </div>
-        </form>
-    </div>
-
-    <!-- Template Modal -->
-    <div class="modal fade" id="templateModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Välj sajt-mall</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="list-group" id="templateList">
-                        <!-- Templates will be loaded here -->
-                    </div>
-                </div>
+            <div class="card-body">
+                <div id="configsList">Laddar...</div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Load templates
-        function loadTemplate() {
-            fetch('/api/templates')
-                .then(response => response.json())
-                .then(templates => {
-                    const list = document.getElementById('templateList');
-                    list.innerHTML = '';
-                    
-                    Object.entries(templates).forEach(([id, template]) => {
-                        const item = document.createElement('button');
-                        item.className = 'list-group-item list-group-item-action';
-                        item.innerHTML = `
-                            <strong>${template.name}</strong><br>
-                            <small class="text-muted">${template.url}</small>
-                        `;
-                        item.onclick = () => applyTemplate(template);
-                        list.appendChild(item);
+        fetch('/api/configs')
+            .then(r => r.json())
+            .then(configs => {
+                if (configs.length === 0) {
+                    document.getElementById('configsList').innerHTML = 
+                        '<p class="text-muted">Inga konfigurationer hittades. Lägg till via API:et.</p>';
+                } else {
+                    let html = '<table class="table"><thead><tr><th>Namn</th><th>URL</th><th>Aktiv</th></tr></thead><tbody>';
+                    configs.forEach(c => {
+                        html += `<tr><td>${c.name}</td><td>${c.base_url}</td><td>${c.enabled ? "✅" : "❌"}</td></tr>`;
                     });
-                    
-                    new bootstrap.Modal(document.getElementById('templateModal')).show();
-                });
-        }
-        
-        function applyTemplate(template) {
-            // Fill form with template values
-            document.querySelector('[name="name"]').value = template.name;
-            document.querySelector('[name="url"]').value = template.url;
-            document.querySelector('[name="selectors[product_container]"]').value = template.selectors.product_container;
-            document.querySelector('[name="selectors[product_link]"]').value = template.selectors.product_link;
-            document.querySelector('[name="selectors[product_title]"]').value = template.selectors.product_title;
-            document.querySelector('[name="selectors[product_price]"]').value = template.selectors.product_price;
-            document.querySelector('[name="selectors[next_page]"]').value = template.selectors.next_page || '';
-            
-            bootstrap.Modal.getInstance(document.getElementById('templateModal')).hide();
-        }
-        
-        function addCategory() {
-            const container = document.getElementById('categoriesList');
-            const div = document.createElement('div');
-            div.className = 'input-group mb-2 category-item';
-            div.innerHTML = `
-                <input type="url" class="form-control" name="categories[]" placeholder="https://...">
-                <button class="btn btn-outline-danger" type="button" onclick="removeCategory(this)">
-                    <i class="bi bi-trash"></i>
-                </button>
-            `;
-            container.appendChild(div);
-        }
-        
-        function removeCategory(button) {
-            button.closest('.category-item').remove();
-        }
-        
-        function testSelectors() {
-            const url = document.querySelector('[name="url"]').value;
-            const selectors = {
-                product_container: document.querySelector('[name="selectors[product_container]"]').value,
-                product_link: document.querySelector('[name="selectors[product_link]"]').value,
-                product_title: document.querySelector('[name="selectors[product_title]"]').value,
-                product_price: document.querySelector('[name="selectors[product_price]"]').value,
-                next_page: document.querySelector('[name="selectors[next_page]"]').value
-            };
-            
-            fetch('/api/test-selectors', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({url, selectors})
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    alert(`Test lyckades!\nHittade ${data.products_found} produkter på första sidan.`);
-                } else {
-                    alert('Test misslyckades: ' + data.message);
+                    html += '</tbody></table>';
+                    document.getElementById('configsList').innerHTML = html;
                 }
             })
-            .catch(error => {
-                alert('Fel vid test: ' + error);
+            .catch(err => {
+                document.getElementById('configsList').innerHTML = 
+                    '<p class="text-danger">Kunde inte ladda konfigurationer</p>';
             });
-        }
-        
-        // Save configuration
-        document.getElementById('configForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const config = {};
-            
-            // Parse form data to nested object
-            for (let [key, value] of formData.entries()) {
-                if (key.endsWith('[]')) {
-                    key = key.slice(0, -2);
-                    if (!config[key]) config[key] = [];
-                    config[key].push(value);
-                } else {
-                    const parts = key.split(/[\[\]]+/).filter(p => p);
-                    let current = config;
-                    
-                    for (let i = 0; i < parts.length - 1; i++) {
-                        if (!current[parts[i]]) current[parts[i]] = {};
-                        current = current[parts[i]];
-                    }
-                    
-                    // Handle checkboxes
-                    if (value === 'on') {
-                        current[parts[parts.length - 1]] = true;
-                    } else if (value === 'off') {
-                        current[parts[parts.length - 1]] = false;
-                    } else if (!isNaN(value) && value !== '') {
-                        current[parts[parts.length - 1]] = parseFloat(value);
-                    } else {
-                        current[parts[parts.length - 1]] = value;
-                    }
-                }
-            }
-            
-            // Ensure checkboxes that are unchecked are set to false
-            const checkboxes = ['enabled', 'alerts[enabled]', 'schedule[enabled]', 'filters[exclude_out_of_stock]'];
-            checkboxes.forEach(checkbox => {
-                const parts = checkbox.split(/[\[\]]+/).filter(p => p);
-                let current = config;
-                for (let i = 0; i < parts.length - 1; i++) {
-                    if (!current[parts[i]]) current[parts[i]] = {};
-                    current = current[parts[i]];
-                }
-                if (current[parts[parts.length - 1]] === undefined) {
-                    current[parts[parts.length - 1]] = false;
-                }
-            });
-            
-            // Save configuration
-            fetch('/api/config', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(config)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    alert('Konfiguration sparad!');
-                    window.location.href = '/';
-                } else {
-                    alert('Fel vid sparande: ' + data.message);
-                }
-            })
-            .catch(error => {
-                alert('Fel vid anrop: ' + error);
-            });
-        });
     </script>
 </body>
 </html>
