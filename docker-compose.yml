@@ -80,7 +80,7 @@ services:
       DB_FILE: /data/products.db
       SCRAPER_API: http://gluetun:5001   # <-- VIKTIGT! Använd gluetun!
     volumes:
-      - ${DOCKER}/scraper:/data:ro
+      - ${DOCKER}/scraper:/data:rw
     #ports:
       #- "${WEBUI_PORT:-3000}:3000"
     networks:
