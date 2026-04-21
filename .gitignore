@@ -64,3 +64,6 @@ tmp/
 temp/
 *.tmp
 secrets/
+secrets/
+data/
+.env
