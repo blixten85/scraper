@@ -84,13 +84,32 @@ API-dokumentation: `http://localhost:8000/docs`
 ## 🔧 Konfiguration (.env)
 
 ```bash
-WEBUI_PORT=3000
-API_PORT=8000
+# =========================
+# DATA DIRECTORY
+# =========================
+DOCKER=/path/to/docker/data
+CONFIG=/path/to/config
+
+# =========================
+# SCRAPER CONFIGURATION
+# =========================
 CONCURRENT_PAGES=3
+HEADLESS=true
 SCRAPE_INTERVAL=3600
+
+# =========================
+# ALERTS CONFIGURATION
+# =========================
+ALERT_CHECK_INTERVAL=1800
 MIN_DROP_PERCENT=5
 MIN_DROP_AMOUNT=100
 COOLDOWN_HOURS=24
+
+# =========================
+# PORTS
+# =========================
+WEBUI_PORT=3000
+API_PORT=8000
 ```
 
 ## 📜 docker-compose.yml
@@ -104,14 +123,16 @@ services:
     container_name: scraper_engine
     restart: unless-stopped
     pull_policy: always
+    security_opt:
+      - no-new-privileges:true
     environment:
       SCRAPER_DATA_PATH: /data
       CONCURRENT_PAGES: ${CONCURRENT_PAGES:-3}
       HEADLESS: ${HEADLESS:-true}
       SCRAPE_INTERVAL: ${SCRAPE_INTERVAL:-3600}
     volumes:
-      - ${DATA_DIR:-./data}:/data
-      - ${DATA_DIR:-./data}/logs:/logs
+      - ${DOCKER}/scraper:/data
+      - ${DOCKER}/scraper/logs:/logs
     ports:
       - "5001:5001"
     healthcheck:
@@ -124,16 +145,19 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    network_mode: "service:gluetun"
 
   api:
     image: ghcr.io/blixten85/scraper-api:latest
     container_name: scraper_api
     restart: unless-stopped
     pull_policy: always
+    security_opt:
+      - no-new-privileges:true
     environment:
       DB_FILE: /data/products.db
     volumes:
-      - ${DATA_DIR:-./data}:/data:ro
+      - ${DOCKER}/scraper:/data:ro
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
@@ -155,11 +179,13 @@ services:
     container_name: scraper_webui
     restart: unless-stopped
     pull_policy: always
+    security_opt:
+      - no-new-privileges:true
     environment:
       DB_FILE: /data/products.db
       SCRAPER_API: http://scraper_engine:5001
     volumes:
-      - ${DATA_DIR:-./data}:/data:ro
+      - ${DOCKER}/scraper:/data:ro
     ports:
       - "${WEBUI_PORT:-3000}:3000"
     depends_on:
@@ -181,6 +207,8 @@ services:
     container_name: scraper_alerts
     restart: unless-stopped
     pull_policy: always
+    security_opt:
+      - no-new-privileges:true
     environment:
       DB_FILE: /data/products.db
       DISCORD_WEBHOOK_FILE: /run/secrets/discord_webhook
@@ -189,8 +217,8 @@ services:
       MIN_DROP_AMOUNT: ${MIN_DROP_AMOUNT:-100}
       COOLDOWN_HOURS: ${COOLDOWN_HOURS:-24}
     volumes:
-      - ${DATA_DIR:-./data}:/data
-      - ${DATA_DIR:-./data}/logs:/logs
+      - ${DOCKER}/scraper:/data
+      - ${DOCKER}/scraper/logs:/logs
     secrets:
       - discord_webhook
     depends_on:
@@ -204,7 +232,7 @@ services:
 
 secrets:
   discord_webhook:
-    file: ./secrets/discord_webhook.txt
+    file: ${CONFIG}/secrets/discord_webhook
 ```
 
 ## 📝 Licens
