@@ -19,6 +19,7 @@ services:
     volumes:
       - ${DOCKER}/scraper:/data
       - ${DOCKER}/scraper/logs:/logs
+      - ${DOCKER}/scraper/playwright-cache:/root/.cache/ms-playwright  # ← NY!
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
       interval: 60s

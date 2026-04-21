@@ -137,6 +137,7 @@ services:
     volumes:
       - ${DOCKER}/scraper:/data
       - ${DOCKER}/scraper/logs:/logs
+      - ${DOCKER}/scraper/playwright-cache:/root/.cache/ms-playwright  # ← NY!
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
       interval: 60s
@@ -219,7 +220,7 @@ services:
       swag: "enable"
       swag_address: "scraper_webui"
       swag_port: "3000"
-      swag_url: "scraper.$DOMAIN}"
+      swag_url: "scraper.${DOMAIN}"
 
   alerts:
     image: ghcr.io/blixten85/scraper-alerts:latest
