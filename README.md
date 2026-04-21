@@ -93,6 +93,120 @@ MIN_DROP_AMOUNT=100
 COOLDOWN_HOURS=24
 ```
 
+## 📜 docker-compose.yml
+
+```bash
+version: "3.9"
+
+services:
+  scraper:
+    image: ghcr.io/blixten85/scraper:latest
+    container_name: scraper_engine
+    restart: unless-stopped
+    pull_policy: always
+    environment:
+      SCRAPER_DATA_PATH: /data
+      CONCURRENT_PAGES: ${CONCURRENT_PAGES:-3}
+      HEADLESS: ${HEADLESS:-true}
+      SCRAPE_INTERVAL: ${SCRAPE_INTERVAL:-3600}
+    volumes:
+      - ${DATA_DIR:-./data}:/data
+      - ${DATA_DIR:-./data}/logs:/logs
+    ports:
+      - "5001:5001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    image: ghcr.io/blixten85/scraper-api:latest
+    container_name: scraper_api
+    restart: unless-stopped
+    pull_policy: always
+    environment:
+      DB_FILE: /data/products.db
+    volumes:
+      - ${DATA_DIR:-./data}:/data:ro
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      scraper:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  webui:
+    image: ghcr.io/blixten85/scraper-webui:latest
+    container_name: scraper_webui
+    restart: unless-stopped
+    pull_policy: always
+    environment:
+      DB_FILE: /data/products.db
+      SCRAPER_API: http://scraper_engine:5001
+    volumes:
+      - ${DATA_DIR:-./data}:/data:ro
+    ports:
+      - "${WEBUI_PORT:-3000}:3000"
+    depends_on:
+      - scraper
+      - api
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  alerts:
+    image: ghcr.io/blixten85/scraper-alerts:latest
+    container_name: scraper_alerts
+    restart: unless-stopped
+    pull_policy: always
+    environment:
+      DB_FILE: /data/products.db
+      DISCORD_WEBHOOK_FILE: /run/secrets/discord_webhook
+      CHECK_INTERVAL: ${ALERT_CHECK_INTERVAL:-1800}
+      MIN_DROP_PERCENT: ${MIN_DROP_PERCENT:-5}
+      MIN_DROP_AMOUNT: ${MIN_DROP_AMOUNT:-100}
+      COOLDOWN_HOURS: ${COOLDOWN_HOURS:-24}
+    volumes:
+      - ${DATA_DIR:-./data}:/data
+      - ${DATA_DIR:-./data}/logs:/logs
+    secrets:
+      - discord_webhook
+    depends_on:
+      scraper:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+secrets:
+  discord_webhook:
+    file: ./secrets/discord_webhook.txt
+```
+
 ## 📝 Licens
 
 MIT - se [Licens](Licens)
