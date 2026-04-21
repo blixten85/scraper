@@ -110,6 +110,7 @@ COOLDOWN_HOURS=24
 # =========================
 WEBUI_PORT=3000
 API_PORT=8000
+DOMAIN=example.com
 ```
 
 ## 📜 docker-compose.yml
