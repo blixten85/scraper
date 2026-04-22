@@ -68,46 +68,46 @@ services:
         max-file: "3"
 
   api:
-      image: ghcr.io/blixten85/scraper-api:latest
-      container_name: scraper_api
-      restart: unless-stopped
-      pull_policy: always
-      user: "${PUID}:${PGID}"
-      security_opt:
-        - no-new-privileges:true
-      environment:
-        TZ: ${TZ}
-        PUID: ${PUID}
-        PGID: ${PGID}
-        DB_HOST: postgres
-        DB_NAME: scraper
-        DB_USER: scraper
-        DB_PASSWORD_FILE: /run/secrets/scraper_password
-        API_KEY_FILE: /run/secrets/api_key
-        ALLOWED_ORIGINS: "https://scraper.${DOMAIN}"
-      secrets:
-        - scraper_password
-        - api_key
-      depends_on:
-        postgres:
-          condition: service_healthy
-      networks:
-        - scraper_net
-      healthcheck:
-        test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-        interval: 30s
-        timeout: 10s
-        retries: 3
-      logging:
-        driver: json-file
-        options:
-          max-size: "10m"
-          max-file: "3"
-      labels:
-        swag: "enable"
-        swag_address: "scraper_api"
-        swag_port: "8000"
-        swag_url: "api.scraper.${DOMAIN}"
+    image: ghcr.io/blixten85/scraper-api:latest
+    container_name: scraper_api
+    restart: unless-stopped
+    pull_policy: always
+    user: "${PUID}:${PGID}"
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TZ: ${TZ}
+      PUID: ${PUID}
+      PGID: ${PGID}
+      DB_HOST: postgres
+      DB_NAME: scraper
+      DB_USER: scraper
+      DB_PASSWORD_FILE: /run/secrets/scraper_password
+      API_KEY_FILE: /run/secrets/api_key
+      ALLOWED_ORIGINS: "https://scraper.${DOMAIN}"
+    secrets:
+      - scraper_password
+      - api_key
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - scraper_net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      swag: "enable"
+      swag_address: "scraper_api"
+      swag_port: "8000"
+      swag_url: "api.scraper.${DOMAIN}"
 
   webui:
     image: ghcr.io/blixten85/scraper-webui:latest
@@ -122,9 +122,9 @@ services:
       PUID: ${PUID}
       PGID: ${PGID}
       SCRAPER_API: http://scraper_api:8000
-      SCRAPER_APIKEY_FILE: /run/secrets/scraper_apikey
+      API_KEY_FILE: /run/secrets/api_key
     secrets:
-      - scraper_apikey
+      - api_key
     depends_on:
       - api
     networks:
@@ -188,7 +188,7 @@ networks:
 secrets:
   scraper_password:
     file: ${CONFIG}/.secrets/scraper_password
-  scraper_apikey:
-    file: ${CONFIG}/.secrets/scraper_apikey
+  api_key:
+    file: ${CONFIG}/.secrets/api_key
   discord_webhook:
     file: ${CONFIG}/.secrets/discord_webhook

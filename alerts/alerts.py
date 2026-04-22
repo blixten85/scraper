@@ -20,7 +20,6 @@ LOG_DIR = "/logs"
 DB_HOST = os.getenv('DB_HOST', 'postgres')
 DB_NAME = os.getenv('DB_NAME', 'scraper')
 DB_USER = os.getenv('DB_USER', 'scraper')
-DISCORD_WEBHOOK_FILE = os.getenv('DISCORD_WEBHOOK_FILE', '/run/secrets/discord_webhook')
 CHECK_INTERVAL = int(os.getenv('CHECK_INTERVAL', '1800'))
 MIN_DROP_PERCENT = float(os.getenv('MIN_DROP_PERCENT', '5'))
 MIN_DROP_AMOUNT = int(os.getenv('MIN_DROP_AMOUNT', '100'))
@@ -77,11 +76,8 @@ def return_db(conn):
 
 
 def get_webhook():
-    try:
-        with open(DISCORD_WEBHOOK_FILE, 'r') as f:
-            return f.read().strip()
-    except:
-        return os.getenv('DISCORD_WEBHOOK')
+    """Hämta Discord webhook från secret eller env"""
+    return read_secret("DISCORD_WEBHOOK")
 
 
 def send_discord(webhook, title, old_price, new_price, url):

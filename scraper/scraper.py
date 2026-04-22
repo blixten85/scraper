@@ -48,6 +48,7 @@ scraping_active = False
 write_buffer = []
 write_lock = asyncio.Lock()
 
+
 # === Hjälpfunktion för secrets ===
 def read_secret(env_var, default=""):
     """Läs secret från fil eller env"""
@@ -241,7 +242,7 @@ async def scrape_page_with_retry(context, url, max_retries=3):
 async def scrape_site(context, config):
     page_num = 1
     products_found = 0
-    known_urls = set()  # För att spåra nya vs uppdaterade
+    known_urls = set()
     
     try:
         logger.info(f"Startar: {config['name']}")
@@ -300,6 +301,19 @@ async def flush_buffer():
     
     for product, was_known in buffer_copy:
         try:
+            # Hämta nuvarande pris om produkten finns
+            current_price = None
+            if was_known:
+                cur.execute("SELECT current_price FROM products WHERE url = %s", (product['url'],))
+                row = cur.fetchone()
+                if row:
+                    current_price = row[0]
+            
+            # Skippa om priset är oförändrat
+            if current_price == product['price']:
+                stats['skipped'] += 1
+                continue
+            
             cur.execute("""
                 INSERT INTO products (url, title, current_price, site_config_id, last_updated)
                 VALUES (%s, %s, %s, %s, %s)
@@ -312,6 +326,7 @@ async def flush_buffer():
             
             product_id = cur.fetchone()[0]
             
+            # Spara i prishistorik ENDAST om priset ändrats
             cur.execute("""
                 INSERT INTO price_history (product_id, price, timestamp)
                 VALUES (%s, %s, %s)
@@ -369,7 +384,8 @@ async def run_scraper():
     if write_buffer:
         await flush_buffer()
     
-    logger.info(f"Klar. Nya: {stats['products']}, Uppdaterade: {stats['updated']}, Retries: {stats['retries']}")
+    logger.info(f"Klar. Nya: {stats['products']}, Uppdaterade: {stats['updated']}, "
+                f"Skippade: {stats['skipped']}, Retries: {stats['retries']}")
 
 
 async def scraper_loop():
