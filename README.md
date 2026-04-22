@@ -3,6 +3,7 @@
 [![Build and Push Images](https://github.com/blixten85/scraper/actions/workflows/docker-build.yml/badge.svg)](https://github.com/blixten85/scraper/actions/workflows/docker-build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/blixten85/scraper?style=social)](https://github.com/blixten85/scraper)
+[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-%23db61a2.svg?logo=github)](https://github.com/sponsors/blixten85)
 
 **Production-ready web scraping platform with PostgreSQL, WebUI, REST API, and price monitoring.**
 
