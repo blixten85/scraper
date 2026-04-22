@@ -1,8 +1,23 @@
 # 🕷️ Web Scraper Platform
 
-[![Build and Push Images](https://github.com/blixten85/scraper/actions/workflows/docker-build.yml/badge.svg)](https://github.com/blixten85/scraper/actions/workflows/docker-build.yml)
+[![Scraper](https://github.com/blixten85/scraper/actions/workflows/scraper-build.yml/badge.svg)](https://github.com/blixten85/scraper/actions/workflows/scraper-build.yml)
+[![API](https://github.com/blixten85/scraper/actions/workflows/api-build.yml/badge.svg)](https://github.com/blixten85/scraper/actions/workflows/api-build.yml)
+[![WebUI](https://github.com/blixten85/scraper/actions/workflows/webui-build.yml/badge.svg)](https://github.com/blixten85/scraper/actions/workflows/webui-build.yml)
+[![Alerts](https://github.com/blixten85/scraper/actions/workflows/alerts-build.yml/badge.svg)](https://github.com/blixten85/scraper/actions/workflows/alerts-build.yml)
+<br>
+[![Release](https://img.shields.io/github/v/release/blixten85/scraper)](https://github.com/blixten85/scraper/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![GitHub Stars](https://img.shields.io/github/stars/blixten85/scraper?style=social)](https://github.com/blixten85/scraper)
+[![Dependabot](https://img.shields.io/badge/Dependabot-active-brightgreen)](https://github.com/blixten85/scraper/network/updates)
+[![Auto-merge](https://img.shields.io/badge/Auto--merge-enabled-blue)](https://github.com/blixten85/scraper/blob/main/.github/workflows/auto-merge.yml)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/blixten85/scraper/blob/main/CONTRIBUTING.md)
+<br>
+[![Python](https://img.shields.io/badge/Python-3.11-blue)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Flask-3.0.0-lightgrey)](https://flask.palletsprojects.com/)
+[![Playwright](https://img.shields.io/badge/Playwright-1.40.0-2EAD33)](https://playwright.dev/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-316192)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Docker-24.0-2496ED)](https://www.docker.com/)
+<br>
+[![Stars](https://img.shields.io/github/stars/blixten85/scraper?style=social)](https://github.com/blixten85/scraper)
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-%23db61a2.svg?logo=github)](https://github.com/sponsors/blixten85)
 
 **Production-ready web scraping platform with PostgreSQL, WebUI, REST API, and price monitoring.**
@@ -40,7 +55,7 @@ mkdir -p ${DOCKER}/scraper/{logs,postgres,playwright-cache}
 sudo chown -R 999:999 ${DOCKER}/scraper/postgres
 
 # 4. Create Discord webhook (optional)
-echo "your-discord-webhook-url" > ${CONFIG}/.secrets/discord_webhook
+echo "url" > ${CONFIG}/.secrets/discord_webhook
 
 # 5. Start the platform
 docker compose up -d
