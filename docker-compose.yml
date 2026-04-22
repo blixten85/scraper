@@ -114,6 +114,7 @@ services:
         PUID: ${PUID}
         PGID: ${PGID}
         SCRAPER_API: http://scraper_api:8000
+        SCRAPER_ENGINE: http://scraper_engine:5001
         API_KEY_FILE: /run/secrets/api_key
       secrets:
         - api_key
