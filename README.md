@@ -260,7 +260,7 @@ If you like this project, give it a ⭐ on GitHub!
 
 ## 📝 License
 
-MIT - see LICENSE
+MIT - see [LICENSE](LICENSE)
 
 ---
 
