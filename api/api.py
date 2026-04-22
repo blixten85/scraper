@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-PostgreSQL-baserat API - Produktionsversion
+PostgreSQL-baserat API - Produktionsversion med connection pooling
 """
 
 import os
 import logging
 import sys
-import json
+import csv
+from io import StringIO
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import FastAPI, Query, HTTPException, Request
@@ -15,15 +16,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import psycopg2
 import psycopg2.extras
-import csv
-from io import StringIO
+from psycopg2.pool import ThreadedConnectionPool
 
 # === Konfiguration ===
 DB_HOST = os.getenv('DB_HOST', 'postgres')
 DB_NAME = os.getenv('DB_NAME', 'scraper')
 DB_USER = os.getenv('DB_USER', 'scraper')
-DB_PASSWORD = os.getenv('DB_PASSWORD', 'scraper_password')
-API_KEY = os.getenv('API_KEY', 'changeme')
+ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'https://scraper.denied.se').split(',')
 
 # === Loggning ===
 logging.basicConfig(
@@ -33,18 +32,55 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# === Hjälpfunktion för secrets ===
+def read_secret(env_var, default=""):
+    """Läs secret från fil eller env"""
+    path = os.getenv(f"{env_var}_FILE")
+    if path and os.path.exists(path):
+        with open(path) as f:
+            return f.read().strip()
+    return os.getenv(env_var, default)
+
+
+# === Connection Pool ===
+db_pool = None
+
+def init_db_pool():
+    global db_pool
+    db_password = read_secret("DB_PASSWORD")
+    
+    db_pool = ThreadedConnectionPool(
+        minconn=1,
+        maxconn=10,
+        host=DB_HOST,
+        database=DB_NAME,
+        user=DB_USER,
+        password=db_password,
+        connect_timeout=10
+    )
+    logger.info("Database connection pool initialized")
+
+
+def get_db():
+    return db_pool.getconn()
+
+
+def return_db(conn):
+    db_pool.putconn(conn)
+
+
 # === FastAPI app ===
 app = FastAPI(
     title="Web Scraper API",
     description="Produktions-API för prisbevakning",
-    version="3.0.0",
+    version="4.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -52,27 +88,35 @@ app.add_middleware(
 
 
 # === API Key Middleware ===
+API_KEY = None
+
+def get_api_key():
+    global API_KEY
+    if API_KEY is None:
+        API_KEY = read_secret("API_KEY")
+    return API_KEY
+
+
 @app.middleware("http")
 async def check_api_key(request: Request, call_next):
-    # Tillåt health check och docs utan API-nyckel
     if request.url.path in ["/health", "/docs", "/openapi.json", "/", "/redoc"]:
         return await call_next(request)
     
-    if request.headers.get("X-API-Key") != API_KEY:
+    if request.headers.get("X-API-Key") != get_api_key():
         raise HTTPException(status_code=401, detail="Unauthorized - Invalid API Key")
     
     return await call_next(request)
 
 
-def get_db():
-    """PostgreSQL-anslutning"""
-    return psycopg2.connect(
-        host=DB_HOST,
-        database=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        connect_timeout=10
-    )
+@app.on_event("startup")
+async def startup():
+    init_db_pool()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    if db_pool:
+        db_pool.closeall()
 
 
 @app.get("/", tags=["Root"])
@@ -80,7 +124,7 @@ def root():
     return {
         "message": "Web Scraper API",
         "status": "running",
-        "version": "3.0.0"
+        "version": "4.0.0"
     }
 
 
@@ -90,7 +134,7 @@ def health_check():
         conn = get_db()
         cur = conn.cursor()
         cur.execute("SELECT 1")
-        conn.close()
+        return_db(conn)
         return {"status": "healthy", "database": "connected", "timestamp": datetime.utcnow().isoformat()}
     except Exception as e:
         return {"status": "unhealthy", "error": str(e), "timestamp": datetime.utcnow().isoformat()}
@@ -130,7 +174,7 @@ def get_products(
     
     cur.execute(query, params)
     products = cur.fetchall()
-    conn.close()
+    return_db(conn)
     
     return {
         "products": products,
@@ -147,7 +191,7 @@ def get_product(product_id: int):
     
     cur.execute("SELECT * FROM products WHERE id = %s", (product_id,))
     row = cur.fetchone()
-    conn.close()
+    return_db(conn)
     
     if not row:
         raise HTTPException(status_code=404, detail="Produkt ej hittad")
@@ -164,6 +208,7 @@ def get_price_history(product_id: int, limit: int = Query(100, le=1000)):
     product = cur.fetchone()
     
     if not product:
+        return_db(conn)
         raise HTTPException(status_code=404, detail="Produkt ej hittad")
     
     cur.execute("""
@@ -182,7 +227,7 @@ def get_price_history(product_id: int, limit: int = Query(100, le=1000)):
     """, (product_id,))
     stats = cur.fetchone()
     
-    conn.close()
+    return_db(conn)
     
     return {
         "product_id": product_id,
@@ -202,7 +247,6 @@ def get_deals(
     conn = get_db()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
-    # Använder window function (snabbare!)
     cur.execute("""
         SELECT *
         FROM (
@@ -239,7 +283,7 @@ def get_deals(
                 "new_date": row['new_date'].isoformat() if row['new_date'] else None
             })
     
-    conn.close()
+    return_db(conn)
     
     deals.sort(key=lambda x: x['drop_percent'], reverse=True)
     
@@ -276,7 +320,7 @@ def get_stats():
     cur.execute("SELECT COUNT(*) FROM scraper_config WHERE enabled = 1")
     active_configs = cur.fetchone()['count']
     
-    conn.close()
+    return_db(conn)
     
     return {
         "total_products": total_products,
@@ -305,7 +349,7 @@ def export_csv():
     for row in cur.fetchall():
         writer.writerow([row[0], row[1], row[2], row[3], row[4], row[5]])
     
-    conn.close()
+    return_db(conn)
     output.seek(0)
     
     return StreamingResponse(

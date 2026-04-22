@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-WebUI Control Plane - Förenklad version med API-proxy
+WebUI Control Plane - Proxyrar allt till API:et
 """
 
 import os
-import json
-import sqlite3
 import logging
 import requests
 from datetime import datetime
@@ -14,8 +12,7 @@ from flask import Flask, render_template, request, jsonify, Response
 from flask_cors import CORS
 
 # === Konfiguration ===
-DB_FILE = os.getenv('DB_FILE', '/data/products.db')
-SQLITE_BUSY_TIMEOUT = int(os.getenv('SQLITE_BUSY_TIMEOUT', '5000'))
+SCRAPER_API = os.getenv('SCRAPER_API', 'http://scraper_api:8000')
 
 app = Flask(__name__)
 CORS(app)
@@ -24,173 +21,137 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def get_db_connection():
-    """Hämta databasanslutning"""
-    try:
-        conn = sqlite3.connect(DB_FILE, timeout=10)
-        conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT};")
-        conn.row_factory = sqlite3.Row
-        return conn
-    except Exception as e:
-        logger.error(f"DB connection error: {e}")
-        raise
+# === Hjälpfunktion för secrets ===
+def read_secret(env_var, default=""):
+    """Läs secret från fil eller env"""
+    path = os.getenv(f"{env_var}_FILE")
+    if path and os.path.exists(path):
+        with open(path) as f:
+            return f.read().strip()
+    return os.getenv(env_var, default)
 
 
-def get_stats_from_db():
-    """Hämta statistik från databasen"""
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        cur.execute("SELECT COUNT(*) FROM products")
-        total_products = cur.fetchone()[0]
-        
-        cur.execute("""
-            SELECT COUNT(DISTINCT product_id) 
-            FROM price_history 
-            WHERE timestamp >= datetime('now', '-1 day')
-        """)
-        updated_24h = cur.fetchone()[0]
-        
-        cur.execute("SELECT COUNT(*) FROM scraper_config WHERE enabled = 1")
-        active_configs = cur.fetchone()[0]
-        
-        conn.close()
-        
-        return {
-            'total_products': total_products,
-            'updated_24h': updated_24h,
-            'active_configs': active_configs
-        }
-    except Exception as e:
-        logger.error(f"Stats error: {e}")
-        return {
-            'total_products': 0,
-            'updated_24h': 0,
-            'active_configs': 1
-        }
+API_KEY = None
+
+def get_api_key():
+    global API_KEY
+    if API_KEY is None:
+        API_KEY = read_secret("API_KEY")
+    return API_KEY
+
+
+def api_request(method, path, **kwargs):
+    """Proxy-request till API:et med API-nyckel"""
+    url = f"{SCRAPER_API}{path}"
+    headers = kwargs.pop('headers', {})
+    headers['X-API-Key'] = get_api_key()
+    return requests.request(method, url, headers=headers, **kwargs)
 
 
 @app.route('/')
 def index():
-    """Dashboard"""
     return render_template('index.html')
 
 
 @app.route('/config')
 def config_page():
-    """Konfigurationssida"""
     return render_template('config.html')
 
 
 @app.route('/health')
 def health():
-    """Hälsokontroll"""
     return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
 
 
 @app.route('/api/configs', methods=['GET'])
 def get_configs():
-    """Hämta alla konfigurationer"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM scraper_config ORDER BY name")
-        configs = [dict(row) for row in cur.fetchall()]
-        conn.close()
-        return jsonify(configs)
+        resp = api_request('GET', '/config')
+        return jsonify(resp.json()), resp.status_code
     except Exception as e:
-        logger.error(f"Configs error: {e}")
-        return jsonify([])
+        return jsonify({'error': str(e)}), 503
 
 
-@app.route('/api/stats')
-def api_stats():
-    """Hämta statistik"""
-    return jsonify(get_stats_from_db())
-
-
-@app.route('/api/products')
-def get_products():
-    """Hämta produkter"""
-    limit = request.args.get('limit', 50, type=int)
-    offset = request.args.get('offset', 0, type=int)
-    search = request.args.get('search', '')
-    
+@app.route('/api/configs', methods=['POST'])
+def create_config():
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        query = "SELECT id, title, url, current_price, last_updated FROM products"
-        count_query = "SELECT COUNT(*) FROM products"
-        params = []
-        
-        if search:
-            query += " WHERE title LIKE ?"
-            count_query += " WHERE title LIKE ?"
-            params.append(f"%{search}%")
-        
-        query += " ORDER BY last_updated DESC LIMIT ? OFFSET ?"
-        params.extend([limit, offset])
-        
-        cur.execute(count_query, params[:-2] if search else [])
-        total = cur.fetchone()[0]
-        
-        cur.execute(query, params)
-        products = [dict(row) for row in cur.fetchall()]
-        
-        conn.close()
-        
-        return jsonify({
-            'products': products,
-            'total': total,
-            'limit': limit,
-            'offset': offset
-        })
+        resp = api_request('POST', '/config', json=request.json)
+        return jsonify(resp.json()), resp.status_code
     except Exception as e:
-        logger.error(f"Products error: {e}")
-        return jsonify({'products': [], 'total': 0})
+        return jsonify({'error': str(e)}), 503
+
+
+@app.route('/api/configs/<int:config_id>', methods=['PUT'])
+def update_config(config_id):
+    try:
+        resp = api_request('PUT', f'/config/{config_id}', json=request.json)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 503
+
+
+@app.route('/api/configs/<int:config_id>', methods=['DELETE'])
+def delete_config(config_id):
+    try:
+        resp = api_request('DELETE', f'/config/{config_id}')
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 503
+
+
+@app.route('/api/test', methods=['POST'])
+def test_config():
+    try:
+        resp = api_request('POST', '/test', json=request.json)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 503
 
 
 @app.route('/api/scrape', methods=['POST'])
 def trigger_scrape():
-    """Starta manuell scraping"""
-    return jsonify({'status': 'success', 'message': 'Scraping triggered'})
+    try:
+        resp = api_request('POST', '/scrape')
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 503
 
 
-# === PROXY TILL API DOKUMENTATION ===
+@app.route('/api/stats')
+def get_stats():
+    try:
+        resp = api_request('GET', '/stats')
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 503
+
+
+@app.route('/api/products')
+def get_products():
+    try:
+        resp = api_request('GET', '/products', params=request.args)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 503
+
+
 @app.route('/api/docs')
 @app.route('/api/docs/<path:path>')
 def proxy_api_docs(path=''):
-    """Proxy API-dokumentation från interna API:et"""
     try:
-        api_url = "http://scraper_api:8000/docs"
+        url = f"{SCRAPER_API}/docs"
         if path:
-            api_url = f"http://scraper_api:8000/docs/{path}"
-        
-        resp = requests.request(
-            method=request.method,
-            url=api_url,
-            headers={key: value for key, value in request.headers if key != 'Host'},
-            data=request.get_data(),
-            cookies=request.cookies,
-            allow_redirects=False
-        )
-        
-        excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
-        headers = [(name, value) for name, value in resp.raw.headers.items()
-                   if name.lower() not in excluded_headers]
-        
-        return Response(resp.content, resp.status_code, headers)
+            url = f"{SCRAPER_API}/docs/{path}"
+        resp = requests.get(url)
+        return Response(resp.content, resp.status_code, resp.raw.headers.items())
     except Exception as e:
         return f"API proxy error: {e}", 503
 
 
 @app.route('/openapi.json')
 def proxy_openapi():
-    """Proxy OpenAPI-specifikationen"""
     try:
-        resp = requests.get("http://scraper_api:8000/openapi.json")
+        resp = requests.get(f"{SCRAPER_API}/openapi.json")
         return Response(resp.content, resp.status_code, resp.raw.headers.items())
     except Exception as e:
         return f"Error: {e}", 503

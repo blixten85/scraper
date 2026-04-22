@@ -48,18 +48,30 @@ scraping_active = False
 write_buffer = []
 write_lock = asyncio.Lock()
 
+# === Hjälpfunktion för secrets ===
+def read_secret(env_var, default=""):
+    """Läs secret från fil eller env"""
+    path = os.getenv(f"{env_var}_FILE")
+    if path and os.path.exists(path):
+        with open(path) as f:
+            return f.read().strip()
+    return os.getenv(env_var, default)
+
+
 # === Connection Pool ===
 db_pool = None
 
 def init_db_pool():
     global db_pool
+    db_password = read_secret("DB_PASSWORD")
+    
     db_pool = ThreadedConnectionPool(
         minconn=1,
         maxconn=10,
         host=os.getenv("DB_HOST", "postgres"),
         database=os.getenv("DB_NAME", "scraper"),
         user=os.getenv("DB_USER", "scraper"),
-        password=os.getenv("DB_PASSWORD", "scraper_password"),
+        password=db_password,
         connect_timeout=10
     )
     logger.info("Database connection pool initialized")
@@ -207,31 +219,29 @@ async def extract_product(page, element, config):
 
 async def scrape_page_with_retry(context, url, max_retries=3):
     """Skrapa sida med exponential backoff"""
-    page = await context.new_page()
-    
     for attempt in range(max_retries):
+        page = await context.new_page()
         try:
             await page.goto(url, timeout=60000)
             await page.wait_for_load_state("domcontentloaded")
             return page
         except Exception as e:
+            await page.close()
             if attempt < max_retries - 1:
                 wait_time = 2 ** attempt + random.uniform(0, 1)
                 logger.warning(f"Retry {attempt+1}/{max_retries} for {url} after {wait_time:.1f}s: {e}")
                 stats['retries'] += 1
                 await asyncio.sleep(wait_time)
             else:
-                await page.close()
                 raise
     
-    await page.close()
     return None
 
 
 async def scrape_site(context, config):
     page_num = 1
     products_found = 0
-    page = None
+    known_urls = set()  # För att spåra nya vs uppdaterade
     
     try:
         logger.info(f"Startar: {config['name']}")
@@ -253,10 +263,13 @@ async def scrape_site(context, config):
                 product = await extract_product(page, elem, config)
                 if product:
                     async with write_lock:
-                        write_buffer.append(product)
+                        write_buffer.append((product, product['url'] in known_urls))
+                        known_urls.add(product['url'])
                         if len(write_buffer) >= 20:
                             await flush_buffer()
                     products_found += 1
+            
+            await page.close()
             
             if config.get('pagination_type') == 'query':
                 separator = '&' if '?' in config['base_url'] else '?'
@@ -265,16 +278,12 @@ async def scrape_site(context, config):
                 url = None
             
             page_num += 1
-            await page.close()
             await asyncio.sleep(random.uniform(1, 3))
         
         logger.info(f"Klar med {config['name']}: {products_found} produkter")
     except Exception as e:
         logger.error(f"Fel i {config['name']}: {e}")
         stats['errors'] += 1
-    finally:
-        if page:
-            await page.close()
 
 
 async def flush_buffer():
@@ -289,7 +298,7 @@ async def flush_buffer():
     cur = conn.cursor()
     now = datetime.datetime.now()
     
-    for product in buffer_copy:
+    for product, was_known in buffer_copy:
         try:
             cur.execute("""
                 INSERT INTO products (url, title, current_price, site_config_id, last_updated)
@@ -298,21 +307,20 @@ async def flush_buffer():
                     current_price = EXCLUDED.current_price,
                     title = EXCLUDED.title,
                     last_updated = EXCLUDED.last_updated
-                RETURNING id, (xmax = 0) AS is_new
+                RETURNING id
             """, (product['url'], product['title'], product['price'], product['site_config_id'], now))
             
-            row = cur.fetchone()
-            product_id, is_new = row[0], row[1]
+            product_id = cur.fetchone()[0]
             
             cur.execute("""
                 INSERT INTO price_history (product_id, price, timestamp)
                 VALUES (%s, %s, %s)
             """, (product_id, product['price'], now))
             
-            if is_new:
-                stats['products'] += 1
-            else:
+            if was_known:
                 stats['updated'] += 1
+            else:
+                stats['products'] += 1
                 
         except Exception as e:
             logger.error(f"DB-fel: {e}")
@@ -477,25 +485,34 @@ def delete_config(config_id):
 
 
 @app.route('/test', methods=['POST'])
-async def test_scrape():
+def test_scrape_sync():
+    """Testa scraping - sync wrapper för async"""
     config = request.json
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
-        try:
-            await page.goto(config['base_url'], timeout=30000)
-            await page.wait_for_load_state("domcontentloaded")
-            elements = await page.query_selector_all(config['product_selector'])
-            products = []
-            for elem in elements[:5]:
-                product = await extract_product(page, elem, config)
-                if product:
-                    products.append(product)
-            await browser.close()
-            return jsonify({'status': 'success', 'elements_found': len(elements), 'preview': products})
-        except Exception as e:
-            await browser.close()
-            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    async def _test():
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            try:
+                await page.goto(config['base_url'], timeout=30000)
+                await page.wait_for_load_state("domcontentloaded")
+                elements = await page.query_selector_all(config['product_selector'])
+                products = []
+                for elem in elements[:5]:
+                    product = await extract_product(page, elem, config)
+                    if product:
+                        products.append(product)
+                await browser.close()
+                return {'status': 'success', 'elements_found': len(elements), 'preview': products}
+            except Exception as e:
+                await browser.close()
+                return {'status': 'error', 'message': str(e)}
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    result = loop.run_until_complete(_test())
+    loop.close()
+    return jsonify(result)
 
 
 @app.route('/scrape', methods=['POST'])

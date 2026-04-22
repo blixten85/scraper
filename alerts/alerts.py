@@ -12,6 +12,7 @@ import sys
 import signal
 import requests
 import psycopg2
+import psycopg2.extras
 from psycopg2.pool import ThreadedConnectionPool
 
 # === Konfiguration ===
@@ -19,7 +20,6 @@ LOG_DIR = "/logs"
 DB_HOST = os.getenv('DB_HOST', 'postgres')
 DB_NAME = os.getenv('DB_NAME', 'scraper')
 DB_USER = os.getenv('DB_USER', 'scraper')
-DB_PASSWORD = os.getenv('DB_PASSWORD', 'scraper_password')
 DISCORD_WEBHOOK_FILE = os.getenv('DISCORD_WEBHOOK_FILE', '/run/secrets/discord_webhook')
 CHECK_INTERVAL = int(os.getenv('CHECK_INTERVAL', '1800'))
 MIN_DROP_PERCENT = float(os.getenv('MIN_DROP_PERCENT', '5'))
@@ -43,15 +43,27 @@ alerts_sent = 0
 db_pool = None
 
 
+# === Hjälpfunktion för secrets ===
+def read_secret(env_var, default=""):
+    """Läs secret från fil eller env"""
+    path = os.getenv(f"{env_var}_FILE")
+    if path and os.path.exists(path):
+        with open(path) as f:
+            return f.read().strip()
+    return os.getenv(env_var, default)
+
+
 def init_db_pool():
     global db_pool
+    db_password = read_secret("DB_PASSWORD")
+    
     db_pool = ThreadedConnectionPool(
         minconn=1,
         maxconn=5,
         host=DB_HOST,
         database=DB_NAME,
         user=DB_USER,
-        password=DB_PASSWORD,
+        password=db_password,
         connect_timeout=10
     )
 
@@ -108,7 +120,6 @@ async def check_drops():
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     try:
-        # Hitta prisfall med window function
         cur.execute("""
             WITH price_drops AS (
                 SELECT 
@@ -133,7 +144,6 @@ async def check_drops():
             if drop_percent < MIN_DROP_PERCENT and drop_amount < MIN_DROP_AMOUNT:
                 continue
             
-            # Kolla cooldown i databasen (atomiskt)
             cur.execute("""
                 INSERT INTO alert_cooldown (product_id, last_alert)
                 VALUES (%s, NOW())
