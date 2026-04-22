@@ -53,12 +53,12 @@ docker compose up -d
 
 📦 Services (Docker)
 
-Service Port Description
-scraper_db 5432 (internal) PostgreSQL database
-scraper_engine 5001 (internal) Main engine - scrapes sites
-scraper_api 8000 REST API + Swagger docs
-scraper_webui 3000 Web interface
-scraper_alerts - Discord notifications
+| Service | Port | Description |
+| `scraper_db` | 5432 (internal) PostgreSQL database
+| `scraper_engine` | 5001 (internal) Main engine - scrapes sites
+| `scraper_api` | 8000 REST API + Swagger docs
+| `scraper_webui` | 3000 Web interface
+| `scraper_alerts` | - Discord notifications
 
 ---
 
@@ -149,10 +149,10 @@ PROXY_URL=
 
 Proxy Service Examples
 
-Service Format
-BrightData http://user-country-ignore:pass@zproxy.lum-superproxy.io:22225
-IPRoyal http://username:password@geo.iproyal.com:12321
-Proxy-Cheap http://user:pass@proxy.example.com:3128
+| Service | Format |
+| BrightData | http://user-country-ignore:pass@zproxy.lum-superproxy.io:22225
+| IPRoyal | http://username:password@geo.iproyal.com:12321
+| Proxy-Cheap | http://user:pass@proxy.example.com:3128
 
 ---
 
