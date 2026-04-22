@@ -156,13 +156,10 @@ def init_db():
         INSERT INTO scraper_config 
         (name, base_url, product_selector, title_selector, price_selector, link_selector)
         VALUES 
-        ('Inet.se', 'https://www.inet.se', 
-         'a[href*=''/produkt/'']', 
-         'a[href*=''/produkt/'']', 
-         'text=/\\d[\\d\\s]*\\s*kr/', 
-         'a[href*=''/produkt/'']')
+        ('Bookstore', 'https://books.toscrape.com', 
+         'article.product_pod', 'h3 a', 'p.price_color', 'h3 a')
         """)
-        logger.info("Skapade default config")
+        logger.info("Skapade default config: Bookstore")
     
     conn.commit()
     return_db(conn)
@@ -377,12 +374,20 @@ async def run_scraper():
             args=[
                 '--no-sandbox',
                 '--disable-dev-shm-usage',
+                '--disable-http2',
+                '--ignore-certificate-errors',
+                '--ignore-ssl-errors',
                 '--disable-blink-features=AutomationControlled',
                 '--disable-web-security',
                 '--disable-features=IsolateOrigins,site-per-process'
             ]
         )
-        context = await browser.new_context()
+        context = await browser.new_context(
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            viewport={'width': 1920, 'height': 1080},
+            locale='sv-SE',
+            timezone_id='Europe/Stockholm'
+        )
         sem = asyncio.Semaphore(MAX_CONCURRENT)
         
         async def worker(cfg):
