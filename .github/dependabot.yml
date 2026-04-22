@@ -1,111 +1,77 @@
+# .github/dependabot.yml
 version: 2
 updates:
-  # Docker images
+  # ALLA Docker-uppdateringar i EN PR
   - package-ecosystem: "docker"
-    directory: "/scraper"
+    directories:
+      - "/scraper"
+      - "/api"
+      - "/webui"
+      - "/alerts"
     schedule:
       interval: "weekly"
       day: "monday"
+      time: "09:00"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 1
     commit-message:
       prefix: "docker"
       include: "scope"
     labels:
       - "dependencies"
       - "docker"
+      - "auto-merge"
+    groups:
+      all-docker:
+        patterns:
+          - "*"
 
-  - package-ecosystem: "docker"
-    directory: "/api"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    commit-message:
-      prefix: "docker"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "docker"
-
-  - package-ecosystem: "docker"
-    directory: "/webui"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    commit-message:
-      prefix: "docker"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "docker"
-
-  - package-ecosystem: "docker"
-    directory: "/alerts"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    commit-message:
-      prefix: "docker"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "docker"
-
-  # Python dependencies
+  # ALLA Python-uppdateringar i EN PR
   - package-ecosystem: "pip"
-    directory: "/scraper"
+    directories:
+      - "/scraper"
+      - "/api"
+      - "/webui"
+      - "/alerts"
     schedule:
       interval: "weekly"
       day: "monday"
+      time: "09:00"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 1
+    versioning-strategy: increase-if-necessary
     commit-message:
       prefix: "pip"
       include: "scope"
     labels:
       - "dependencies"
       - "python"
+      - "auto-merge"
+    groups:
+      all-python:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "playwright"
+        versions: [">=1.41.0"]
 
-  - package-ecosystem: "pip"
-    directory: "/api"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    commit-message:
-      prefix: "pip"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "python"
-
-  - package-ecosystem: "pip"
-    directory: "/webui"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    commit-message:
-      prefix: "pip"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "python"
-
-  - package-ecosystem: "pip"
-    directory: "/alerts"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    commit-message:
-      prefix: "pip"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "python"
-
-  # GitHub Actions
+  # GitHub Actions i EN PR
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "monthly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 1
     commit-message:
       prefix: "ci"
       include: "scope"
     labels:
       - "dependencies"
       - "ci"
+      - "auto-merge"
+    groups:
+      all-actions:
+        patterns:
+          - "*"

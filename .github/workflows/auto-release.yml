@@ -1,0 +1,42 @@
+# .github/workflows/auto-release.yml
+name: Auto-Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '.github/**'
+      - '!.github/workflows/auto-release.yml'
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create Release
+        uses: google-github-actions/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          release-type: simple
+          package-name: scraper
+          changelog-types: |
+            [
+              {"type":"feat","section":"✨ Features","hidden":false},
+              {"type":"fix","section":"🐛 Bug Fixes","hidden":false},
+              {"type":"docker","section":"🐳 Docker","hidden":false},
+              {"type":"pip","section":"📦 Dependencies","hidden":false},
+              {"type":"ci","section":"⚙️ CI/CD","hidden":false},
+              {"type":"docs","section":"📚 Documentation","hidden":false},
+              {"type":"chore","section":"🧹 Chores","hidden":true}
+            ]
