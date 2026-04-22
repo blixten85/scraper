@@ -1,6 +1,5 @@
 ---
-
-name: 💡 Feature Request
+name: "\U0001F4A1 Feature Request"
 about: Suggest a new feature
 title: "[FEATURE] "
 labels: enhancement
