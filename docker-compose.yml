@@ -45,6 +45,7 @@ services:
       CONCURRENT_PAGES: ${CONCURRENT_PAGES}
       HEADLESS: ${HEADLESS}
       SCRAPE_INTERVAL: ${SCRAPE_INTERVAL}
+      PLAYWRIGHT_BROWSERS_PATH: /root/.cache/ms-playwright
     volumes:
       - ${DOCKER}/scraper/logs:/logs
       - ${DOCKER}/scraper/playwright-cache:/root/.cache/ms-playwright
