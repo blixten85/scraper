@@ -246,9 +246,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 | | |
 |--|--|
-| **Version** | 1.0.1 |
+| **Version** | [![Version](https://img.shields.io/github/v/tag/blixten85/scraper?label=version)](https://github.com/blixten85/scraper/tags) |
 | **Status** | ✅ Production Ready |
-| **Last Updated** | 2026-04-22 |
+| **Last Updated** | [![Last Commit](https://img.shields.io/github/last-commit/blixten85/scraper)](https://github.com/blixten85/scraper/commits) |
 
 ---
 
