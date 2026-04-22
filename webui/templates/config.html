@@ -19,14 +19,65 @@
     </nav>
 
     <div class="container mt-4">
-        <h1>Konfiguration</h1>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1>Konfiguration</h1>
+            <button class="btn btn-primary" onclick="showAddForm()">
+                <i class="bi bi-plus-circle"></i> Lägg till ny site
+            </button>
+        </div>
         
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle"></i>
-            Konfigurationen hanteras via API:et. 
-            <a href="/api/docs" target="_blank">Öppna API-dokumentation</a>
+        <!-- Add Form (hidden by default) -->
+        <div id="addForm" class="card mb-4" style="display: none;">
+            <div class="card-header">Lägg till ny scraper-konfiguration</div>
+            <div class="card-body">
+                <form onsubmit="addConfig(event)">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label>Namn</label>
+                            <input type="text" class="form-control" id="cfgName" required placeholder="t.ex. Komplett.se">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label>URL</label>
+                            <input type="url" class="form-control" id="cfgUrl" required placeholder="https://www.example.com">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label>Produkt-container</label>
+                            <input type="text" class="form-control" id="cfgProduct" required placeholder="div.product-item">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label>Titel-selektor</label>
+                            <input type="text" class="form-control" id="cfgTitle" required placeholder="h2.product-title">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label>Pris-selektor</label>
+                            <input type="text" class="form-control" id="cfgPrice" required placeholder="span.price">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label>Länk-selektor</label>
+                            <input type="text" class="form-control" id="cfgLink" required placeholder="a.product-link">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success">Spara</button>
+                    <button type="button" class="btn btn-secondary" onclick="hideAddForm()">Avbryt</button>
+                </form>
+            </div>
         </div>
 
+        <!-- Quick Templates -->
+        <div class="card mb-4">
+            <div class="card-header">Snabbtemplates</div>
+            <div class="card-body">
+                <button class="btn btn-outline-secondary me-2" onclick="loadTemplate('inet')">Inet.se</button>
+                <button class="btn btn-outline-secondary me-2" onclick="loadTemplate('komplett')">Komplett.se</button>
+                <button class="btn btn-outline-secondary" onclick="loadTemplate('webhallen')">Webhallen.com</button>
+            </div>
+        </div>
+
+        <!-- Configs List -->
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">Aktiva konfigurationer</h5>
@@ -38,25 +89,128 @@
     </div>
 
     <script>
-        fetch('/api/configs')
+        const templates = {
+            inet: {
+                name: "Inet.se",
+                base_url: "https://www.inet.se/kategori/datorkomponenter",
+                product_selector: "a[href*='/produkt/']",
+                title_selector: "",
+                price_selector: "text=/\\d[\\d\\s]*\\s*kr/",
+                link_selector: ""
+            },
+            komplett: {
+                name: "Komplett.se",
+                base_url: "https://www.komplett.se/category/datorkomponenter",
+                product_selector: "div.product-list-item",
+                title_selector: "h2.product-name",
+                price_selector: "span.product-price-now",
+                link_selector: "a.product-link"
+            },
+            webhallen: {
+                name: "Webhallen.com",
+                base_url: "https://www.webhallen.com/se/category/datorkomponenter",
+                product_selector: "div.product-item",
+                title_selector: "h2.product-title",
+                price_selector: "span.price",
+                link_selector: "a.product-link"
+            }
+        };
+
+        function showAddForm() {
+            document.getElementById('addForm').style.display = 'block';
+        }
+
+        function hideAddForm() {
+            document.getElementById('addForm').style.display = 'none';
+        }
+
+        function loadTemplate(name) {
+            const t = templates[name];
+            if (t) {
+                document.getElementById('cfgName').value = t.name;
+                document.getElementById('cfgUrl').value = t.base_url;
+                document.getElementById('cfgProduct').value = t.product_selector;
+                document.getElementById('cfgTitle').value = t.title_selector;
+                document.getElementById('cfgPrice').value = t.price_selector;
+                document.getElementById('cfgLink').value = t.link_selector;
+                showAddForm();
+            }
+        }
+
+        function addConfig(e) {
+            e.preventDefault();
+            const data = {
+                name: document.getElementById('cfgName').value,
+                base_url: document.getElementById('cfgUrl').value,
+                product_selector: document.getElementById('cfgProduct').value,
+                title_selector: document.getElementById('cfgTitle').value,
+                price_selector: document.getElementById('cfgPrice').value,
+                link_selector: document.getElementById('cfgLink').value,
+                enabled: true
+            };
+
+            fetch('/api/configs', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            })
             .then(r => r.json())
-            .then(configs => {
-                if (configs.length === 0) {
-                    document.getElementById('configsList').innerHTML = 
-                        '<p class="text-muted">Inga konfigurationer hittades. Lägg till via API:et.</p>';
+            .then(res => {
+                if (res.status === 'success') {
+                    alert('Konfiguration sparad!');
+                    hideAddForm();
+                    loadConfigs();
+                    // Rensa formulär
+                    document.getElementById('cfgName').value = '';
+                    document.getElementById('cfgUrl').value = '';
+                    document.getElementById('cfgProduct').value = '';
+                    document.getElementById('cfgTitle').value = '';
+                    document.getElementById('cfgPrice').value = '';
+                    document.getElementById('cfgLink').value = '';
                 } else {
-                    let html = '<table class="table"><thead><tr><th>Namn</th><th>URL</th><th>Aktiv</th></tr></thead><tbody>';
-                    configs.forEach(c => {
-                        html += `<tr><td>${c.name}</td><td>${c.base_url}</td><td>${c.enabled ? "✅" : "❌"}</td></tr>`;
-                    });
-                    html += '</tbody></table>';
-                    document.getElementById('configsList').innerHTML = html;
+                    alert('Fel: ' + (res.message || 'Kunde inte spara'));
                 }
             })
-            .catch(err => {
-                document.getElementById('configsList').innerHTML = 
-                    '<p class="text-danger">Kunde inte ladda konfigurationer</p>';
-            });
+            .catch(err => alert('Fel: ' + err));
+        }
+
+        function deleteConfig(id) {
+            if (!confirm('Ta bort denna konfiguration?')) return;
+            fetch(`/api/configs/${id}`, {method: 'DELETE'})
+                .then(r => r.json())
+                .then(() => loadConfigs())
+                .catch(err => alert('Fel: ' + err));
+        }
+
+        function loadConfigs() {
+            fetch('/api/configs')
+                .then(r => r.json())
+                .then(configs => {
+                    if (configs.length === 0) {
+                        document.getElementById('configsList').innerHTML = 
+                            '<p class="text-muted">Inga konfigurationer hittades.</p>';
+                    } else {
+                        let html = '<table class="table"><thead><tr><th>Namn</th><th>URL</th><th>Aktiv</th><th></th></tr></thead><tbody>';
+                        configs.forEach(c => {
+                            html += `<tr>
+                                <td>${c.name}</td>
+                                <td>${c.base_url}</td>
+                                <td>${c.enabled ? "✅" : "❌"}</td>
+                                <td><button class="btn btn-sm btn-danger" onclick="deleteConfig(${c.id})">🗑️</button></td>
+                            </tr>`;
+                        });
+                        html += '</tbody></table>';
+                        document.getElementById('configsList').innerHTML = html;
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('configsList').innerHTML = 
+                        '<p class="text-danger">Kunde inte ladda konfigurationer</p>';
+                });
+        }
+
+        // Ladda vid start
+        loadConfigs();
     </script>
 </body>
 </html>
