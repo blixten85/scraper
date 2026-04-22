@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-WebUI Control Plane
+WebUI Control Plane - Proxyrar anrop till API och Scraper Engine
 """
 
 import os
@@ -37,6 +37,12 @@ def engine_request(method, path, **kwargs):
     url = f"{SCRAPER_ENGINE}{path}"
     return requests.request(method, url, **kwargs)
 
+def api_request(method, path, **kwargs):
+    url = f"{SCRAPER_API}{path}"
+    headers = kwargs.pop('headers', {})
+    headers['X-API-Key'] = get_api_key()
+    return requests.request(method, url, headers=headers, **kwargs)
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -47,38 +53,64 @@ def config_page():
 
 @app.route('/health')
 def health():
-    return jsonify({'status': 'healthy'})
+    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
 
-@app.route('/api/configs')
+@app.route('/api/configs', methods=['GET'])
 def get_configs():
     try:
         resp = engine_request('GET', '/config')
-        return jsonify(resp.json())
-    except:
-        return jsonify([])
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        logger.error(f"Engine error: {e}")
+        return jsonify([]), 200
+
+@app.route('/api/configs', methods=['POST'])
+def create_config():
+    try:
+        resp = engine_request('POST', '/config', json=request.json)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 503
+
+@app.route('/api/configs/<int:config_id>', methods=['DELETE'])
+def delete_config(config_id):
+    try:
+        resp = engine_request('DELETE', f'/config/{config_id}')
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 503
 
 @app.route('/api/scrape', methods=['POST'])
 def trigger_scrape():
     try:
+        # FIX: Anropa rätt endpoint på engine
         resp = engine_request('POST', '/scrape')
-        return jsonify(resp.json())
-    except:
-        return jsonify({'status': 'error'}), 503
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 503
+
+@app.route('/api/test', methods=['POST'])
+def test_scrape():
+    try:
+        resp = engine_request('POST', '/test', json=request.json)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 503
 
 @app.route('/api/stats')
 def get_stats():
     try:
-        resp = requests.get(f"{SCRAPER_API}/stats", headers={'X-API-Key': get_api_key()})
-        return jsonify(resp.json())
-    except:
-        return jsonify({'total_products': 0})
+        resp = api_request('GET', '/stats')
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({'total_products': 0, 'updated_24h': 0, 'active_configs': 0})
 
 @app.route('/api/products')
 def get_products():
     try:
-        resp = requests.get(f"{SCRAPER_API}/products", params=request.args, headers={'X-API-Key': get_api_key()})
-        return jsonify(resp.json())
-    except:
+        resp = api_request('GET', '/products', params=request.args)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
         return jsonify({'products': [], 'total': 0})
 
 if __name__ == '__main__':

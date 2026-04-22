@@ -26,10 +26,10 @@ app = Flask(__name__)
 
 # === Konfiguration ===
 LOG_DIR = "/logs"
-MAX_CONCURRENT = int(os.getenv('CONCURRENT_PAGES', '2'))  # Lägre för att undvika block
+MAX_CONCURRENT = int(os.getenv('CONCURRENT_PAGES', '2'))
 HEADLESS = os.getenv('HEADLESS', 'true').lower() == 'true'
 SCRAPE_INTERVAL = int(os.getenv('SCRAPE_INTERVAL', '3600'))
-PROXY_URL = os.getenv('PROXY_URL', '')  # http://user:pass@proxy:port
+PROXY_URL = os.getenv('PROXY_URL', '')
 
 os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -142,10 +142,8 @@ def init_db():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_price_history_product ON price_history(product_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_price_history_time ON price_history(timestamp DESC)")
     
-    # Uppdaterade konfigurationer för svenska sites
     cur.execute("SELECT COUNT(*) FROM scraper_config")
     if cur.fetchone()[0] == 0:
-        # Inet.se
         cur.execute("""
         INSERT INTO scraper_config 
         (name, base_url, product_selector, title_selector, price_selector, link_selector, max_pages)
@@ -153,8 +151,6 @@ def init_db():
         ('Inet.se', 'https://www.inet.se/kategori/datorkomponenter',
          'a[href*=\"/produkt/\"]', '', 'text=/\\d[\\d\\s]*\\s*kr/', '', 5)
         """)
-        
-        # Komplett.se
         cur.execute("""
         INSERT INTO scraper_config 
         (name, base_url, product_selector, title_selector, price_selector, link_selector, max_pages)
@@ -162,8 +158,6 @@ def init_db():
         ('Komplett.se', 'https://www.komplett.se/category/10000/datorkomponenter',
          'div.product', 'h2', 'span.product-price', 'a', 5)
         """)
-        
-        # Webhallen
         cur.execute("""
         INSERT INTO scraper_config 
         (name, base_url, product_selector, title_selector, price_selector, link_selector, max_pages)
@@ -171,8 +165,14 @@ def init_db():
         ('Webhallen', 'https://www.webhallen.com/se/category/3-Datorkomponenter',
          'div.product-item', 'h2.product-title', 'span.price', 'a.product-link', 5)
         """)
-        
-        logger.info("Skapade default configs för svenska sites")
+        cur.execute("""
+        INSERT INTO scraper_config 
+        (name, base_url, product_selector, title_selector, price_selector, link_selector, max_pages)
+        VALUES 
+        ('Bookstore', 'https://books.toscrape.com',
+         'article.product_pod', 'h3 a', 'p.price_color', 'h3 a', 50)
+        """)
+        logger.info("Skapade default configs")
     
     conn.commit()
     return_db(conn)
@@ -241,7 +241,7 @@ async def scrape_page_with_retry(context, url, max_retries=3):
         page = await context.new_page()
         try:
             await page.goto(url, timeout=60000, wait_until="domcontentloaded")
-            await page.wait_for_timeout(random.randint(2000, 5000))  # Mänsklig fördröjning
+            await page.wait_for_timeout(random.randint(2000, 5000))
             return page
         except Exception as e:
             await page.close()
@@ -271,7 +271,6 @@ async def scrape_site(context, config):
             if not page:
                 break
             
-            # Scrolla långsamt som en människa
             for _ in range(random.randint(2, 4)):
                 await page.evaluate("window.scrollBy(0, window.innerHeight * 0.8)")
                 await asyncio.sleep(random.uniform(0.5, 1.5))
@@ -282,10 +281,12 @@ async def scrape_site(context, config):
             for elem in elements:
                 product = await extract_product(page, elem, config)
                 if product:
+                    # FIX: was_known sätts INNAN URL läggs till i known_urls
+                    was_known = product['url'] in known_urls
+                    known_urls.add(product['url'])
                     async with write_lock:
-                        write_buffer.append((product, product['url'] in known_urls))
-                        known_urls.add(product['url'])
-                        if len(write_buffer) >= 10:  # Flusha oftare
+                        write_buffer.append((product, was_known))
+                        if len(write_buffer) >= 10:
                             await flush_buffer()
                     products_found += 1
             
@@ -298,7 +299,7 @@ async def scrape_site(context, config):
                 url = None
             
             page_num += 1
-            await asyncio.sleep(random.uniform(3, 7))  # Längre paus mellan sidor
+            await asyncio.sleep(random.uniform(3, 7))
         
         logger.info(f"Klar med {config['name']}: {products_found} produkter")
     except Exception as e:
@@ -363,7 +364,7 @@ async def flush_buffer():
 
 async def periodic_flush():
     while not shutdown_event.is_set():
-        await asyncio.sleep(5)  # Flusha var 5:e sekund
+        await asyncio.sleep(5)
         if write_buffer:
             async with write_lock:
                 if write_buffer:
@@ -378,7 +379,6 @@ async def run_scraper():
     
     flush_task = asyncio.create_task(periodic_flush())
     
-    # Proxy-inställningar
     proxy = None
     if PROXY_URL:
         proxy = {"server": PROXY_URL}
@@ -405,12 +405,10 @@ async def run_scraper():
             extra_http_headers={
                 'Accept-Language': 'sv-SE,sv;q=0.9,en-US;q=0.8,en;q=0.7',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Encoding': 'gzip, deflate, br',
                 'DNT': '1',
-                'Upgrade-Insecure-Requests': '1',
             }
         )
-        sem = asyncio.Semaphore(1)  # EN site i taget för att undvika block
+        sem = asyncio.Semaphore(1)
         
         async def worker(cfg):
             async with sem:
@@ -418,7 +416,7 @@ async def run_scraper():
         
         for cfg in configs:
             await worker(cfg)
-            await asyncio.sleep(random.uniform(10, 20))  # Paus mellan sites
+            await asyncio.sleep(random.uniform(10, 20))
         
         await browser.close()
     
@@ -495,9 +493,97 @@ def create_config():
         return_db(conn)
 
 
+@app.route('/config/<int:config_id>', methods=['PUT'])
+def update_config(config_id):
+    data = request.json
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE scraper_config SET
+            name = %s, base_url = %s, product_selector = %s, title_selector = %s,
+            price_selector = %s, link_selector = %s, pagination_type = %s,
+            pagination_selector = %s, max_pages = %s, enabled = %s,
+            min_price = %s, max_price = %s, categories = %s, updated_at = NOW()
+        WHERE id = %s
+    """, (
+        data['name'], data['base_url'],
+        data['product_selector'], data['title_selector'],
+        data['price_selector'], data['link_selector'],
+        data.get('pagination_type', 'query'),
+        data.get('pagination_selector'),
+        data.get('max_pages', 10),
+        data.get('enabled', 1),
+        data.get('min_price', 0),
+        data.get('max_price', 999999),
+        json.dumps(data.get('categories', [])),
+        config_id
+    ))
+    conn.commit()
+    return_db(conn)
+    return jsonify({'status': 'success'})
+
+
+@app.route('/config/<int:config_id>', methods=['DELETE'])
+def delete_config(config_id):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("UPDATE scraper_config SET enabled = 0 WHERE id = %s", (config_id,))
+    conn.commit()
+    return_db(conn)
+    return jsonify({'status': 'success'})
+
+
+@app.route('/test', methods=['POST'])
+def test_scrape_sync():
+    config = request.json
+    
+    async def _test():
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            try:
+                await page.goto(config['base_url'], timeout=30000)
+                await page.wait_for_load_state("domcontentloaded")
+                elements = await page.query_selector_all(config['product_selector'])
+                products = []
+                for elem in elements[:5]:
+                    product = await extract_product(page, elem, config)
+                    if product:
+                        products.append(product)
+                await browser.close()
+                return {'status': 'success', 'elements_found': len(elements), 'preview': products}
+            except Exception as e:
+                await browser.close()
+                return {'status': 'error', 'message': str(e)}
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    result = loop.run_until_complete(_test())
+    loop.close()
+    return jsonify(result)
+
+
+@app.route('/scrape', methods=['POST'])
+def trigger_scrape():
+    global scraping_active
+    if scraping_active:
+        return jsonify({'status': 'error', 'message': 'Already running'}), 409
+    
+    def run():
+        asyncio.run(run_scraper())
+    
+    threading.Thread(target=run).start()
+    return jsonify({'status': 'success'})
+
+
+# Alias för WebUI
+@app.route('/trigger-scrape', methods=['POST'])
+def trigger_scrape_alias():
+    return trigger_scrape()
+
+
 @app.route('/export/<site_name>')
 def export_site_csv(site_name):
-    """Exportera produkter för en specifik site till CSV"""
     conn = get_db()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
