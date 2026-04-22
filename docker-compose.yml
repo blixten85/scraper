@@ -102,35 +102,40 @@ services:
         max-file: "3"
 
   webui:
-    image: ghcr.io/blixten85/scraper-webui:latest
-    container_name: scraper_webui
-    restart: unless-stopped
-    pull_policy: always
-    user: "${PUID}:${PGID}"
-    security_opt:
-      - no-new-privileges:true
-    environment:
-      TZ: ${TZ}
-      PUID: ${PUID}
-      PGID: ${PGID}
-      SCRAPER_API: http://scraper_api:8000
-      API_KEY_FILE: /run/secrets/api_key
-    secrets:
-      - api_key
-    depends_on:
-      - api
-    networks:
-      - scraper_net
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/health')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+      image: ghcr.io/blixten85/scraper-webui:latest
+      container_name: scraper_webui
+      restart: unless-stopped
+      pull_policy: always
+      user: "${PUID}:${PGID}"
+      security_opt:
+        - no-new-privileges:true
+      environment:
+        TZ: ${TZ}
+        PUID: ${PUID}
+        PGID: ${PGID}
+        SCRAPER_API: http://scraper_api:8000
+        API_KEY_FILE: /run/secrets/api_key
+      secrets:
+        - api_key
+      depends_on:
+        - api
+      networks:
+        - scraper_net
+      healthcheck:
+        test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/health')"]
+        interval: 30s
+        timeout: 10s
+        retries: 3
+      logging:
+        driver: json-file
+        options:
+          max-size: "10m"
+          max-file: "3"
+      labels:                                 # <-- LÄGG TILL DETTA!
+        swag: "enable"
+        swag_address: "scraper_webui"
+        swag_port: "3000"
+        swag_url: "scraper.${DOMAIN}"
 
   alerts:
     image: ghcr.io/blixten85/scraper-alerts:latest
