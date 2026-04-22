@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-PostgreSQL-baserad multi-site scraper - Produktionsversion
-med proxy-stöd, retry/backoff och periodic flush
+PostgreSQL-based multi-site scraper - Production version
+with proxy support, retry/backoff and periodic flush
 """
 
 import asyncio
@@ -24,7 +24,7 @@ from psycopg2.pool import ThreadedConnectionPool
 
 app = Flask(__name__)
 
-# === Konfiguration ===
+# === Configuration ===
 LOG_DIR = "/logs"
 MAX_CONCURRENT = int(os.getenv('CONCURRENT_PAGES', '2'))
 HEADLESS = os.getenv('HEADLESS', 'true').lower() == 'true'
@@ -51,6 +51,7 @@ write_lock = asyncio.Lock()
 
 
 def read_secret(env_var, default=""):
+    """Read secret from file or env"""
     path = os.getenv(f"{env_var}_FILE")
     if path and os.path.exists(path):
         with open(path) as f:
@@ -76,14 +77,17 @@ def init_db_pool():
 
 
 def get_db():
+    """Get connection from pool"""
     return db_pool.getconn()
 
 
 def return_db(conn):
+    """Return connection to pool"""
     db_pool.putconn(conn)
 
 
 def init_db():
+    """Initialize PostgreSQL database"""
     conn = get_db()
     cur = conn.cursor()
     
@@ -172,14 +176,15 @@ def init_db():
         ('Bookstore', 'https://books.toscrape.com',
          'article.product_pod', 'h3 a', 'p.price_color', 'h3 a', 50)
         """)
-        logger.info("Skapade default configs")
+        logger.info("Created default configs")
     
     conn.commit()
     return_db(conn)
-    logger.info("PostgreSQL-databas initierad")
+    logger.info("PostgreSQL database initialized")
 
 
 def load_configs():
+    """Load active configurations"""
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT * FROM scraper_config WHERE enabled = 1 ORDER BY name")
@@ -232,11 +237,12 @@ async def extract_product(page, element, config):
         
         return {'url': url, 'title': title[:200], 'price': price, 'site_config_id': config['id']}
     except Exception as e:
-        logger.debug(f"Extraheringsfel: {e}")
+        logger.debug(f"Extraction error: {e}")
         return None
 
 
 async def scrape_page_with_retry(context, url, max_retries=3):
+    """Scrape page with exponential backoff"""
     for attempt in range(max_retries):
         page = await context.new_page()
         try:
@@ -261,12 +267,12 @@ async def scrape_site(context, config):
     known_urls = set()
     
     try:
-        logger.info(f"Startar: {config['name']}")
+        logger.info(f"Starting: {config['name']}")
         url = config['base_url']
         max_pages = config.get('max_pages', 10)
         
         while url and page_num <= max_pages and not shutdown_event.is_set():
-            logger.info(f"  Sida {page_num}/{max_pages}: {url}")
+            logger.info(f"  Page {page_num}/{max_pages}: {url}")
             page = await scrape_page_with_retry(context, url)
             if not page:
                 break
@@ -276,12 +282,11 @@ async def scrape_site(context, config):
                 await asyncio.sleep(random.uniform(0.5, 1.5))
             
             elements = await page.query_selector_all(config['product_selector'])
-            logger.info(f"  Hittade {len(elements)} element")
+            logger.info(f"  Found {len(elements)} elements")
             
             for elem in elements:
                 product = await extract_product(page, elem, config)
                 if product:
-                    # FIX: was_known sätts INNAN URL läggs till i known_urls
                     was_known = product['url'] in known_urls
                     known_urls.add(product['url'])
                     async with write_lock:
@@ -301,13 +306,14 @@ async def scrape_site(context, config):
             page_num += 1
             await asyncio.sleep(random.uniform(3, 7))
         
-        logger.info(f"Klar med {config['name']}: {products_found} produkter")
+        logger.info(f"Done with {config['name']}: {products_found} products")
     except Exception as e:
-        logger.error(f"Fel i {config['name']}: {e}")
+        logger.error(f"Error in {config['name']}: {e}")
         stats['errors'] += 1
 
 
 async def flush_buffer():
+    """Save buffered products to PostgreSQL"""
     if not write_buffer:
         return
     
@@ -355,7 +361,7 @@ async def flush_buffer():
                 stats['products'] += 1
                 
         except Exception as e:
-            logger.error(f"DB-fel: {e}")
+            logger.error(f"DB error: {e}")
             stats['errors'] += 1
     
     conn.commit()
@@ -363,6 +369,7 @@ async def flush_buffer():
 
 
 async def periodic_flush():
+    """Flush buffer every 5 seconds"""
     while not shutdown_event.is_set():
         await asyncio.sleep(5)
         if write_buffer:
@@ -372,9 +379,10 @@ async def periodic_flush():
 
 
 async def run_scraper():
+    """Main function"""
     configs = load_configs()
     if not configs:
-        logger.warning("Inga aktiva konfigurationer")
+        logger.warning("No active configurations")
         return
     
     flush_task = asyncio.create_task(periodic_flush())
@@ -382,7 +390,7 @@ async def run_scraper():
     proxy = None
     if PROXY_URL:
         proxy = {"server": PROXY_URL}
-        logger.info(f"Använder proxy: {PROXY_URL.split('@')[-1] if '@' in PROXY_URL else PROXY_URL}")
+        logger.info(f"Using proxy: {PROXY_URL.split('@')[-1] if '@' in PROXY_URL else PROXY_URL}")
     
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -424,7 +432,7 @@ async def run_scraper():
     if write_buffer:
         await flush_buffer()
     
-    logger.info(f"Klar. Nya: {stats['products']}, Uppdaterade: {stats['updated']}, Skippade: {stats['skipped']}")
+    logger.info(f"Done. New: {stats['products']}, Updated: {stats['updated']}, Skipped: {stats['skipped']}")
 
 
 async def scraper_loop():
@@ -434,7 +442,7 @@ async def scraper_loop():
         try:
             await run_scraper()
         except Exception as e:
-            logger.error(f"Scraping misslyckades: {e}")
+            logger.error(f"Scraping failed: {e}")
         finally:
             scraping_active = False
         
@@ -535,6 +543,7 @@ def delete_config(config_id):
 
 @app.route('/test', methods=['POST'])
 def test_scrape_sync():
+    """Test scraping - sync wrapper for async"""
     config = request.json
     
     async def _test():
@@ -576,14 +585,15 @@ def trigger_scrape():
     return jsonify({'status': 'success'})
 
 
-# Alias för WebUI
 @app.route('/trigger-scrape', methods=['POST'])
 def trigger_scrape_alias():
+    """Alias for /scrape"""
     return trigger_scrape()
 
 
 @app.route('/export/<site_name>')
 def export_site_csv(site_name):
+    """Export products for a specific site to CSV"""
     conn = get_db()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
@@ -604,7 +614,7 @@ def export_site_csv(site_name):
     
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(['Produkt', 'Pris (SEK)', 'Länk'])
+    writer.writerow(['Product', 'Price (SEK)', 'Link'])
     
     for p in products:
         writer.writerow([p['title'], p['current_price'], p['url']])
@@ -618,7 +628,7 @@ def export_site_csv(site_name):
 
 
 def signal_handler(signum, frame):
-    logger.info(f"Signal {signum}, stänger ner...")
+    logger.info(f"Signal {signum}, shutting down...")
     shutdown_event.set()
 
 

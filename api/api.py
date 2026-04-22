@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-PostgreSQL-baserat API - Produktionsversion med connection pooling
+PostgreSQL-based API - Production version with connection pooling
 """
 
 import os
@@ -31,6 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def read_secret(env_var, default=""):
+    """Read secret from file or env"""
     path = os.getenv(f"{env_var}_FILE")
     if path and os.path.exists(path):
         with open(path) as f:
@@ -55,7 +56,13 @@ def get_db():
 def return_db(conn):
     db_pool.putconn(conn)
 
-app = FastAPI(title="Web Scraper API", version="4.0.0", docs_url="/docs", redoc_url="/redoc")
+app = FastAPI(
+    title="Web Scraper API",
+    description="Production API for price monitoring",
+    version="4.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 API_KEY = None

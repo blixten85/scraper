@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="sv">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Konfiguration - Web Scraper</title>
+    <title>Configuration - Web Scraper</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 </head>
@@ -13,28 +13,28 @@
             <a class="navbar-brand" href="/">Web Scraper Pro</a>
             <div class="navbar-nav ms-auto">
                 <a class="nav-link" href="/">Dashboard</a>
-                <a class="nav-link active" href="/config">Konfiguration</a>
+                <a class="nav-link active" href="/config">Configuration</a>
             </div>
         </div>
     </nav>
 
     <div class="container mt-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h1>Konfiguration</h1>
+            <h1>Configuration</h1>
             <button class="btn btn-primary" onclick="showAddForm()">
-                <i class="bi bi-plus-circle"></i> Lägg till ny site
+                <i class="bi bi-plus-circle"></i> Add new site
             </button>
         </div>
         
         <!-- Add Form (hidden by default) -->
         <div id="addForm" class="card mb-4" style="display: none;">
-            <div class="card-header">Lägg till ny scraper-konfiguration</div>
+            <div class="card-header">Add new scraper configuration</div>
             <div class="card-body">
                 <form onsubmit="addConfig(event)">
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label>Namn</label>
-                            <input type="text" class="form-control" id="cfgName" required placeholder="t.ex. Komplett.se">
+                            <label>Name</label>
+                            <input type="text" class="form-control" id="cfgName" required placeholder="e.g. Example.com">
                         </div>
                         <div class="col-md-6 mb-3">
                             <label>URL</label>
@@ -43,33 +43,33 @@
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label>Produkt-container</label>
+                            <label>Product container</label>
                             <input type="text" class="form-control" id="cfgProduct" required placeholder="div.product-item">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label>Titel-selektor</label>
+                            <label>Title selector</label>
                             <input type="text" class="form-control" id="cfgTitle" required placeholder="h2.product-title">
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label>Pris-selektor</label>
+                            <label>Price selector</label>
                             <input type="text" class="form-control" id="cfgPrice" required placeholder="span.price">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label>Länk-selektor</label>
+                            <label>Link selector</label>
                             <input type="text" class="form-control" id="cfgLink" required placeholder="a.product-link">
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-success">Spara</button>
-                    <button type="button" class="btn btn-secondary" onclick="hideAddForm()">Avbryt</button>
+                    <button type="submit" class="btn btn-success">Save</button>
+                    <button type="button" class="btn btn-secondary" onclick="hideAddForm()">Cancel</button>
                 </form>
             </div>
         </div>
 
         <!-- Quick Templates -->
         <div class="card mb-4">
-            <div class="card-header">Snabbtemplates</div>
+            <div class="card-header">Quick Templates</div>
             <div class="card-body">
                 <button class="btn btn-outline-secondary me-2" onclick="loadTemplate('inet')">Inet.se</button>
                 <button class="btn btn-outline-secondary me-2" onclick="loadTemplate('komplett')">Komplett.se</button>
@@ -80,10 +80,10 @@
         <!-- Configs List -->
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Aktiva konfigurationer</h5>
+                <h5 class="mb-0">Active configurations</h5>
             </div>
             <div class="card-body">
-                <div id="configsList">Laddar...</div>
+                <div id="configsList">Loading...</div>
             </div>
         </div>
     </div>
@@ -157,10 +157,10 @@
             .then(r => r.json())
             .then(res => {
                 if (res.status === 'success') {
-                    alert('Konfiguration sparad!');
+                    alert('Configuration saved!');
                     hideAddForm();
                     loadConfigs();
-                    // Rensa formulär
+                    // Clear form
                     document.getElementById('cfgName').value = '';
                     document.getElementById('cfgUrl').value = '';
                     document.getElementById('cfgProduct').value = '';
@@ -168,18 +168,18 @@
                     document.getElementById('cfgPrice').value = '';
                     document.getElementById('cfgLink').value = '';
                 } else {
-                    alert('Fel: ' + (res.message || 'Kunde inte spara'));
+                    alert('Error: ' + (res.message || 'Could not save'));
                 }
             })
-            .catch(err => alert('Fel: ' + err));
+            .catch(err => alert('Error: ' + err));
         }
 
         function deleteConfig(id) {
-            if (!confirm('Ta bort denna konfiguration?')) return;
+            if (!confirm('Delete this configuration?')) return;
             fetch(`/api/configs/${id}`, {method: 'DELETE'})
                 .then(r => r.json())
                 .then(() => loadConfigs())
-                .catch(err => alert('Fel: ' + err));
+                .catch(err => alert('Error: ' + err));
         }
 
         function loadConfigs() {
@@ -188,9 +188,9 @@
                 .then(configs => {
                     if (configs.length === 0) {
                         document.getElementById('configsList').innerHTML = 
-                            '<p class="text-muted">Inga konfigurationer hittades.</p>';
+                            '<p class="text-muted">No configurations found.</p>';
                     } else {
-                        let html = '<table class="table"><thead><tr><th>Namn</th><th>URL</th><th>Aktiv</th><th></th></tr></thead><tbody>';
+                        let html = '<table class="table"><thead><tr><th>Name</th><th>URL</th><th>Active</th><th></th></tr></thead><tbody>';
                         configs.forEach(c => {
                             html += `<tr>
                                 <td>${c.name}</td>
@@ -205,11 +205,11 @@
                 })
                 .catch(err => {
                     document.getElementById('configsList').innerHTML = 
-                        '<p class="text-danger">Kunde inte ladda konfigurationer</p>';
+                        '<p class="text-danger">Could not load configurations</p>';
                 });
         }
 
-        // Ladda vid start
+        // Load on start
         loadConfigs();
     </script>
 </body>

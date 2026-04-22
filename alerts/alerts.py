@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Alert-tjänst med cooldown i PostgreSQL
+Alert service with cooldown in PostgreSQL
 """
 
 import asyncio
@@ -15,7 +15,7 @@ import psycopg2
 import psycopg2.extras
 from psycopg2.pool import ThreadedConnectionPool
 
-# === Konfiguration ===
+# === Configuration ===
 LOG_DIR = "/logs"
 DB_HOST = os.getenv('DB_HOST', 'postgres')
 DB_NAME = os.getenv('DB_NAME', 'scraper')
@@ -42,9 +42,9 @@ alerts_sent = 0
 db_pool = None
 
 
-# === Hjälpfunktion för secrets ===
+# === Helper function for secrets ===
 def read_secret(env_var, default=""):
-    """Läs secret från fil eller env"""
+    """Read secret from file or env"""
     path = os.getenv(f"{env_var}_FILE")
     if path and os.path.exists(path):
         with open(path) as f:
@@ -76,7 +76,7 @@ def return_db(conn):
 
 
 def get_webhook():
-    """Hämta Discord webhook från secret eller env"""
+    """Get Discord webhook from secret or env"""
     return read_secret("DISCORD_WEBHOOK")
 
 
@@ -86,14 +86,14 @@ def send_discord(webhook, title, old_price, new_price, url):
     
     payload = {
         "embeds": [{
-            "title": "💸 Prisfall!",
+            "title": "💸 Price Drop!",
             "description": f"**{title}**",
             "color": 16711680,
             "fields": [
-                {"name": "Gammalt", "value": f"{old_price:,} kr".replace(",", " "), "inline": True},
-                {"name": "Nytt", "value": f"{new_price:,} kr".replace(",", " "), "inline": True},
-                {"name": "Nedgång", "value": f"-{drop:,} kr ({percent}%)".replace(",", " "), "inline": True},
-                {"name": "Länk", "value": url}
+                {"name": "Old", "value": f"{old_price:,} kr".replace(",", " "), "inline": True},
+                {"name": "New", "value": f"{new_price:,} kr".replace(",", " "), "inline": True},
+                {"name": "Drop", "value": f"-{drop:,} kr ({percent}%)".replace(",", " "), "inline": True},
+                {"name": "Link", "value": url}
             ]
         }]
     }
@@ -109,7 +109,7 @@ async def check_drops():
     
     webhook = get_webhook()
     if not webhook:
-        logger.error("Ingen webhook konfigurerad")
+        logger.error("No webhook configured")
         return 0
     
     conn = get_db()
@@ -153,7 +153,7 @@ async def check_drops():
                 if send_discord(webhook, row['title'], row['old_price'], row['new_price'], row['url']):
                     alerts_this_run += 1
                     alerts_sent += 1
-                    logger.info(f"Alert: {row['title'][:50]}...")
+                    logger.info(f"Alert sent: {row['title'][:50]}...")
                     await asyncio.sleep(1)
         
         conn.commit()
@@ -163,22 +163,22 @@ async def check_drops():
 
 
 async def alerts_loop():
-    logger.info(f"Alerts startade. Intervall: {CHECK_INTERVAL}s")
+    logger.info(f"Alerts started. Interval: {CHECK_INTERVAL}s")
     
     while not shutdown_event.is_set():
         try:
             sent = await check_drops()
             if sent:
-                logger.info(f"Skickade {sent} alerts")
+                logger.info(f"Sent {sent} alerts")
         except Exception as e:
-            logger.error(f"Fel: {e}")
+            logger.error(f"Error: {e}")
         
         try:
             await asyncio.wait_for(shutdown_event.wait(), timeout=CHECK_INTERVAL)
         except asyncio.TimeoutError:
             pass
     
-    logger.info(f"Alerts avslutade. Totalt: {alerts_sent}")
+    logger.info(f"Alerts stopped. Total sent: {alerts_sent}")
 
 
 def signal_handler():
