@@ -48,38 +48,6 @@ docker compose up -d
 
 ---
 
-🚀 Snabbstart - Enkel Python-scraper (bara .txt)
-
-```bash
-pip install playwright
-playwright install chromium
-```
-
-Redigera simple_scraper.py:
-
-```python
-CONFIG = {
-    "url": "https://www.inet.se/kategori/datorkomponenter",
-    "max_products": 50,
-    "output_file": "products.txt"
-}
-```
-
-Kör:
-
-```bash
-python simple_scraper.py
-```
-
-Färdiga konfigurationer
-
-Sajt product_selector price_selector
-Inet.se a[href*='/produkt/'] text=/\d[\d\s]*\s*kr/
-Komplett.se div.product-list-item span.product-price-now
-Webhallen.com div.product-item span.price
-
----
-
 📦 Tjänster (Docker)
 
 Tjänst Port Beskrivning
