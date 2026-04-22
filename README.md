@@ -1,3 +1,8 @@
+PERFEKT! Här kommer filerna med --- istället för ---:
+
+README.md
+
+```markdown
 # 🕷️ Web Scraper Platform
 
 [![Build and Push Images](https://github.com/blixten85/scraper/actions/workflows/docker-build.yml/badge.svg)](https://github.com/blixten85/scraper/actions/workflows/docker-build.yml)
@@ -52,13 +57,13 @@ docker compose up -d
 
 📦 Services (Docker)
 
-| Service | Port | Description |
-|---------|------|-------------|
-| `scraper_db` | 5432 (internal) | PostgreSQL database |
-| `scraper_engine` | 5001 (internal) | Main engine - scrapes sites |
-| `scraper_api` | 8000 | REST API + Swagger docs |
-| `scraper_webui` | 3000 | Web interface |
-| `scraper_alerts` | - | Discord notifications |
+Service Port Description
+scraper_db 5432 (internal) PostgreSQL database
+scraper_engine 5001 (internal) Main engine - scrapes sites
+scraper_api 8000 REST API + Swagger docs
+scraper_webui 3000 Web interface
+scraper_alerts - Discord notifications
+
 ---
 
 🔐 Generate API Key and Passwords
@@ -148,11 +153,10 @@ PROXY_URL=
 
 Proxy Service Examples
 
-| Service | Format |
-|---------|--------|
-| BrightData | `http://user-country-ignore:pass@zproxy.lum-superproxy.io:22225` |
-| IPRoyal | `http://username:password@geo.iproyal.com:12321` |
-| Proxy-Cheap | `http://user:pass@proxy.example.com:3128` |
+Service Format
+BrightData http://user-country-ignore:pass@zproxy.lum-superproxy.io:22225
+IPRoyal http://username:password@geo.iproyal.com:12321
+Proxy-Cheap http://user:pass@proxy.example.com:3128
 
 ---
 
@@ -193,14 +197,14 @@ products (
   first_seen TIMESTAMP,
   last_updated TIMESTAMP,
   site_config_id INTEGER
-)
+);
 
 price_history (
   id SERIAL PRIMARY KEY,
   product_id INTEGER REFERENCES products(id),
   price INTEGER,
   timestamp TIMESTAMP
-)
+);
 
 scraper_config (
   id SERIAL PRIMARY KEY,
@@ -210,20 +214,9 @@ scraper_config (
   title_selector TEXT,
   price_selector TEXT,
   link_selector TEXT,
-  enabled INTEGER DEFAULT 1,
-  ...
-)
+  enabled INTEGER DEFAULT 1
+);
 ```
-
----
-
-🐛 Bugs and Feature Requests
-
-Found a bug or want to suggest a feature?
-
-· Bugs: Create an issue
-· Feature requests: Create an issue
-· Discussions: Start a discussion
 
 ---
 
@@ -236,17 +229,6 @@ Pull requests are welcome! For major changes, please open an issue first to disc
 3. Commit your changes (git commit -m 'Add some AmazingFeature')
 4. Push to the branch (git push origin feature/AmazingFeature)
 5. Open a Pull Request
-
----
-
-📊 Project Status
-
- 
-| | |
-|--|--|
-| **Version** | 1.0.0 |
-| **Status** | ✅ Production Ready |
-| **Last Updated** | 2026-04-22 |
 
 ---
 
@@ -266,38 +248,29 @@ Created by blixten85 🚀
 
 ```
 
----
-
-## 📁 **.github/ISSUE_TEMPLATE/bug_report.md**
+## .github/ISSUE_TEMPLATE/bug_report.md
 
 ```markdown
----
 name: 🐛 Bug Report
 about: Report a bug
 title: "[BUG] "
 labels: bug
 assignees: ''
 ---
-
 ## 🐛 Description
 A clear description of the bug.
-
 ## 🔄 Steps to Reproduce
 1. Go to '...'
 2. Click on '....'
 3. See error
-
 ## ✅ Expected Behavior
 What should happen.
-
 ## 📸 Screenshots
 If applicable, add screenshots.
-
 ## 🖥️ Environment
 - OS: [e.g. Ubuntu 24.04]
 - Docker version: [e.g. 24.0.7]
 - Version: [e.g. v1.0.0]
-
 ## 📋 Logs
 ```bash
 # Paste relevant logs here
@@ -305,33 +278,23 @@ If applicable, add screenshots.
 
 ```
 
----
-
-## 📁 **.github/ISSUE_TEMPLATE/feature_request.md**
+## .github/ISSUE_TEMPLATE/feature_request.md
 
 ```markdown
----
 name: 💡 Feature Request
 about: Suggest a new feature
 title: "[FEATURE] "
 labels: enhancement
 assignees: ''
 ---
-
 ## 💡 Description
 A clear description of the feature you'd like.
-
 ## 🤔 Problem This Solves
 What problem does this feature solve?
-
 ## 🎯 Use Case
 How would you use this feature?
-
 ## 📋 Alternatives
 Have you considered any alternatives?
-
 ## 📸 Mockups
 If applicable, add sketches or mockups.
 ```
-
----
