@@ -1,7 +1,3 @@
-PERFEKT! Här kommer filerna med --- istället för ---:
-
-README.md
-
 ```markdown
 # 🕷️ Web Scraper Platform
 
