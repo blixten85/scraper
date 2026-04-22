@@ -1,4 +1,3 @@
-```markdown
 # 🕷️ Web Scraper Platform
 
 [![Build and Push Images](https://github.com/blixten85/scraper/actions/workflows/docker-build.yml/badge.svg)](https://github.com/blixten85/scraper/actions/workflows/docker-build.yml)
@@ -51,44 +50,45 @@ docker compose up -d
 
 ---
 
-📦 Services (Docker)
+## 📦 Services (Docker)
 
 | Service | Port | Description |
-| `scraper_db` | 5432 (internal) PostgreSQL database
-| `scraper_engine` | 5001 (internal) Main engine - scrapes sites
-| `scraper_api` | 8000 REST API + Swagger docs
-| `scraper_webui` | 3000 Web interface
-| `scraper_alerts` | - Discord notifications
+|---------|------|-------------|
+| `scraper_db` | 5432 (internal) | PostgreSQL database |
+| `scraper_engine` | 5001 (internal) | Main engine - scrapes sites |
+| `scraper_api` | 8000 | REST API + Swagger docs |
+| `scraper_webui` | 3000 | Web interface |
+| `scraper_alerts` | - | Discord notifications |
 
 ---
 
-🔐 Generate API Key and Passwords
+## 🔐 Generate API Key and Passwords
 
-API Key
+### API Key
 
 ```bash
 # Generate a random API key
 openssl rand -base64 48
 ```
 
-Database Password
+### Database Password
 
 ```bash
 # Generate a secure password
 openssl rand -hex 16
 ```
 
-Discord Webhook
+### Discord Webhook
 
 1. Go to your Discord server → Channel settings → Integrations → Webhooks
 2. Create new webhook and copy the URL
-3. Save it: echo "url" > ${CONFIG}/.secrets/discord_webhook
+3. Save it: `echo "url" > ${CONFIG}/.secrets/discord_webhook`
 
 ---
 
-📡 API Examples
+## 📡 API Examples
 
-Note: API requires X-API-Key header for all endpoints except /health and /docs.
+*Note: API requires X-API-Key header for all endpoints except /health and /docs.*
 
 ```bash
 # Get all products
@@ -108,7 +108,7 @@ API Documentation: http://localhost:8000/docs
 
 ---
 
-🔧 Configuration (.env)
+## 🔧 Configuration (.env)
 
 ```bash
 # =========================
@@ -147,32 +147,33 @@ COOLDOWN_HOURS=24
 PROXY_URL=
 ```
 
-Proxy Service Examples
+### Proxy Service Examples
 
 | Service | Format |
-| BrightData | http://user-country-ignore:pass@zproxy.lum-superproxy.io:22225
-| IPRoyal | http://username:password@geo.iproyal.com:12321
-| Proxy-Cheap | http://user:pass@proxy.example.com:3128
+|---------|--------|
+| BrightData | `http://user-country-ignore:pass@zproxy.lum-superproxy.io:22225` |
+| IPRoyal | `http://username:password@geo.iproyal.com:12321` |
+| Proxy-Cheap | `http://user:pass@proxy.example.com:3128` |
 
 ---
 
-🛠️ Troubleshooting
+## 🛠️ Troubleshooting
 
-Postgres won't start
+### Postgres won't start
 
 ```bash
 # Check permissions
 sudo chown -R 999:999 ${DOCKER}/scraper/postgres
 ```
 
-API returns 401 Unauthorized
+### API returns 401 Unauthorized
 
 ```bash
 # Verify you're sending the correct header
 curl -H "X-API-Key: ${API_KEY}" http://localhost:8000/products
 ```
 
-No products are scraped
+### No products are scraped
 
 ```bash
 # Test selectors via WebUI (Test button)
@@ -182,7 +183,7 @@ docker logs scraper_engine --tail 50
 
 ---
 
-📁 Database Schema
+## 📁 Database Schema
 
 ```sql
 products (
@@ -193,14 +194,14 @@ products (
   first_seen TIMESTAMP,
   last_updated TIMESTAMP,
   site_config_id INTEGER
-);
+)
 
 price_history (
   id SERIAL PRIMARY KEY,
   product_id INTEGER REFERENCES products(id),
   price INTEGER,
   timestamp TIMESTAMP
-);
+)
 
 scraper_config (
   id SERIAL PRIMARY KEY,
@@ -210,13 +211,24 @@ scraper_config (
   title_selector TEXT,
   price_selector TEXT,
   link_selector TEXT,
-  enabled INTEGER DEFAULT 1
-);
+  enabled INTEGER DEFAULT 1,
+  ...
+)
 ```
 
 ---
 
-🤝 Contributing
+## 🐛 Bugs and Feature Requests
+
+Found a bug or want to suggest a feature?
+
+· Bugs: Create an issue
+· Feature requests: Create an issue
+· Discussions: Start a discussion
+
+---
+
+## 🤝 Contributing
 
 Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
 
@@ -226,71 +238,30 @@ Pull requests are welcome! For major changes, please open an issue first to disc
 4. Push to the branch (git push origin feature/AmazingFeature)
 5. Open a Pull Request
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
 ---
 
-⭐ Support the Project
+## 📊 Project Status
+
+| | |
+|--|--|
+| **Version** | 1.0.0 |
+| **Status** | ✅ Production Ready |
+| **Last Updated** | 2026-04-22 |
+
+---
+
+## ⭐ Support the Project
 
 If you like this project, give it a ⭐ on GitHub!
 
 ---
 
-📝 License
+## 📝 License
 
 MIT - see LICENSE
 
 ---
 
 Created by blixten85 🚀
-
-```
-
-## .github/ISSUE_TEMPLATE/bug_report.md
-
-```markdown
-name: 🐛 Bug Report
-about: Report a bug
-title: "[BUG] "
-labels: bug
-assignees: ''
----
-## 🐛 Description
-A clear description of the bug.
-## 🔄 Steps to Reproduce
-1. Go to '...'
-2. Click on '....'
-3. See error
-## ✅ Expected Behavior
-What should happen.
-## 📸 Screenshots
-If applicable, add screenshots.
-## 🖥️ Environment
-- OS: [e.g. Ubuntu 24.04]
-- Docker version: [e.g. 24.0.7]
-- Version: [e.g. v1.0.0]
-## 📋 Logs
-```bash
-# Paste relevant logs here
-```
-
-```
-
-## .github/ISSUE_TEMPLATE/feature_request.md
-
-```markdown
-name: 💡 Feature Request
-about: Suggest a new feature
-title: "[FEATURE] "
-labels: enhancement
-assignees: ''
----
-## 💡 Description
-A clear description of the feature you'd like.
-## 🤔 Problem This Solves
-What problem does this feature solve?
-## 🎯 Use Case
-How would you use this feature?
-## 📋 Alternatives
-Have you considered any alternatives?
-## 📸 Mockups
-If applicable, add sketches or mockups.
-```

@@ -1,22 +1,31 @@
 ---
+
 name: 💡 Feature Request
 about: Suggest a new feature
 title: "[FEATURE] "
 labels: enhancement
 assignees: ''
+
 ---
 
-## 💡 Description
+💡 Description
+
 A clear description of the feature you'd like.
 
-## 🤔 Problem This Solves
+🤔 Problem This Solves
+
 What problem does this feature solve?
 
-## 🎯 Use Case
+🎯 Use Case
+
 How would you use this feature?
 
-## 📋 Alternatives
+📋 Alternatives
+
 Have you considered any alternatives?
 
-## 📸 Mockups
+📸 Mockups
+
 If applicable, add sketches or mockups.
+
+---
