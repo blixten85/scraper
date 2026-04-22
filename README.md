@@ -51,11 +51,11 @@ docker compose up -d
 📦 Tjänster (Docker)
 
 Tjänst Port Beskrivning
-scraper_db 5432 (intern) PostgreSQL-databas
-scraper_engine 5001 (intern) Huvudmotor - skrapar sajter
-scraper_api 8000 REST API + Swagger docs
-scraper_webui 3000 Webbgränssnitt
-scraper_alerts - Discord-notiser
+| `scraper_db` 5432 (intern) PostgreSQL-databas
+| `scraper_engine` 5001 (intern) Huvudmotor - skrapar sajter
+| `scraper_api` 8000 REST API + Swagger docs
+| `scraper_webui` 3000 Webbgränssnitt
+| `scraper_alerts` - Discord-notiser
 
 ---
 
