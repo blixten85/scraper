@@ -2,9 +2,9 @@
 
 # -*- coding: utf-8 -*-
 
-“””
+"""
 PostgreSQL-baserat API - Produktionsversion med connection pooling
-“””
+"""
 
 import os
 import logging
@@ -22,25 +22,25 @@ from psycopg2.pool import ThreadedConnectionPool
 
 # === Konfiguration ===
 
-DB_HOST = os.getenv(‘DB_HOST’, ‘postgres’)
-DB_NAME = os.getenv(‘DB_NAME’, ‘scraper’)
-DB_USER = os.getenv(‘DB_USER’, ‘scraper’)
-ALLOWED_ORIGINS = os.getenv(‘ALLOWED_ORIGINS’, ‘https://scraper.denied.se’).split(’,’)
+DB_HOST = os.getenv('DB_HOST', 'postgres')
+DB_NAME = os.getenv('DB_NAME', 'scraper')
+DB_USER = os.getenv('DB_USER', 'scraper')
+ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'https://scraper.denied.se').split(',')
 
 # === Loggning ===
 
 logging.basicConfig(
 level=logging.INFO,
-format=”%(asctime)s - %(levelname)s - %(message)s”,
+format="%(asctime)s - %(levelname)s - %(message)s",
 handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger(**name**)
 
 # === Hjälpfunktion för secrets ===
 
-def read_secret(env_var, default=””):
-“”“Läs secret från fil eller env”””
-path = os.getenv(f”{env_var}_FILE”)
+def read_secret(env_var, default=""):
+"""Läs secret från fil eller env"""
+path = os.getenv(f"{env_var}_FILE")
 if path and os.path.exists(path):
 with open(path) as f:
 return f.read().strip()
@@ -52,7 +52,7 @@ db_pool = None
 
 def init_db_pool():
 global db_pool
-db_password = read_secret(“DB_PASSWORD”)
+db_password = read_secret("DB_PASSWORD")
 
 ```
 db_pool = ThreadedConnectionPool(
@@ -76,19 +76,19 @@ db_pool.putconn(conn)
 # === FastAPI app ===
 
 app = FastAPI(
-title=“Web Scraper API”,
-description=“Produktions-API för prisbevakning”,
-version=“4.0.0”,
-docs_url=”/docs”,
-redoc_url=”/redoc”
+title="Web Scraper API",
+description="Produktions-API för prisbevakning",
+version="4.0.0",
+docs_url="/docs",
+redoc_url="/redoc"
 )
 
 app.add_middleware(
 CORSMiddleware,
 allow_origins=ALLOWED_ORIGINS,
 allow_credentials=True,
-allow_methods=[”*”],
-allow_headers=[”*”],
+allow_methods=["*"],
+allow_headers=["*"],
 )
 
 # === API Key Middleware ===
@@ -98,12 +98,12 @@ API_KEY = None
 def get_api_key():
 global API_KEY
 if API_KEY is None:
-API_KEY = read_secret(“API_KEY”)
+API_KEY = read_secret("API_KEY")
 return API_KEY
 
-@app.middleware(“http”)
+@app.middleware("http")
 async def check_api_key(request: Request, call_next):
-if request.url.path in [”/health”, “/docs”, “/openapi.json”, “/”, “/redoc”]:
+if request.url.path in ["/health", "/docs", "/openapi.json", "/", "/redoc"]:
 return await call_next(request)
 
 ```
@@ -113,41 +113,41 @@ if request.headers.get("X-API-Key") != get_api_key():
 return await call_next(request)
 ```
 
-@app.on_event(“startup”)
+@app.on_event("startup")
 async def startup():
 init_db_pool()
 
-@app.on_event(“shutdown”)
+@app.on_event("shutdown")
 async def shutdown():
 if db_pool:
 db_pool.closeall()
 
-@app.get(”/”, tags=[“Root”])
+@app.get("/", tags=["Root"])
 def root():
 return {
-“message”: “Web Scraper API”,
-“status”: “running”,
-“version”: “4.0.0”
+"message": "Web Scraper API",
+"status": "running",
+"version": "4.0.0"
 }
 
-@app.get(”/health”, tags=[“Health”])
+@app.get("/health", tags=["Health"])
 def health_check():
 try:
 conn = get_db()
 cur = conn.cursor()
-cur.execute(“SELECT 1”)
+cur.execute("SELECT 1")
 return_db(conn)
-return {“status”: “healthy”, “database”: “connected”, “timestamp”: datetime.utcnow().isoformat()}
+return {"status": "healthy", "database": "connected", "timestamp": datetime.utcnow().isoformat()}
 except Exception as e:
-return {“status”: “unhealthy”, “error”: str(e), “timestamp”: datetime.utcnow().isoformat()}
+return {"status": "unhealthy", "error": str(e), "timestamp": datetime.utcnow().isoformat()}
 
-@app.get(”/products”, tags=[“Products”])
+@app.get("/products", tags=["Products"])
 def get_products(
 limit: int = Query(100, ge=1, le=1000),
 offset: int = Query(0, ge=0),
 search: Optional[str] = Query(None),
-sort: str = Query(“last_updated”),
-order: str = Query(“desc”)
+sort: str = Query("last_updated"),
+order: str = Query("desc")
 ):
 conn = get_db()
 cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -186,7 +186,7 @@ return {
 }
 ```
 
-@app.get(”/products/{product_id}”, tags=[“Products”])
+@app.get("/products/{product_id}", tags=["Products"])
 def get_product(product_id: int):
 conn = get_db()
 cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -202,7 +202,7 @@ if not row:
 return dict(row)
 ```
 
-@app.get(”/products/{product_id}/history”, tags=[“Products”])
+@app.get("/products/{product_id}/history", tags=["Products"])
 def get_price_history(product_id: int, limit: int = Query(100, le=1000)):
 conn = get_db()
 cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -241,7 +241,7 @@ return {
 }
 ```
 
-@app.get(”/deals”, tags=[“Deals”])
+@app.get("/deals", tags=["Deals"])
 def get_deals(
 min_drop_percent: float = Query(5, ge=0),
 min_drop_amount: int = Query(50, ge=0),
@@ -298,7 +298,7 @@ return {
 }
 ```
 
-@app.get(”/stats”, tags=[“Statistics”])
+@app.get("/stats", tags=["Statistics"])
 def get_stats():
 conn = get_db()
 cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -337,7 +337,7 @@ return {
 }
 ```
 
-@app.get(”/export/csv”, tags=[“Export”])
+@app.get("/export/csv", tags=["Export"])
 def export_csv():
 conn = get_db()
 cur = conn.cursor()
@@ -365,6 +365,6 @@ return StreamingResponse(
 )
 ```
 
-if **name** == “**main**”:
+if **name** == "**main**":
 import uvicorn
-uvicorn.run(app, host=“0.0.0.0”, port=8000)
+uvicorn.run(app, host="0.0.0.0", port=8000)
