@@ -1,4 +1,3 @@
-```markdown
 ---
 name: 🐛 Bug Report
 about: Report a bug
@@ -31,6 +30,6 @@ If applicable, add screenshots.
 # Paste relevant logs here
 ```
 
-```
+
 
 ---

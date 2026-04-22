@@ -1,4 +1,3 @@
-```markdown
 ---
 name: 💡 Feature Request
 about: Suggest a new feature
@@ -21,6 +20,3 @@ Have you considered any alternatives?
 
 ## 📸 Mockups
 If applicable, add sketches or mockups.
-```
-
----
