@@ -1,13 +1,8 @@
-# .github/workflows/auto-merge.yml
 name: Dependabot Auto-Merge
 
 on:
   pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - labeled
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
 
 permissions:
@@ -20,8 +15,42 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       github.actor == 'dependabot[bot]' &&
-      contains(github.event.pull_request.labels.*.name, 'auto-merge')
+      contains(github.event.pull_request.labels.*.name, 'auto-merge') &&
+      github.event.pull_request.state == 'open' &&
+      github.event.pull_request.draft == false
     steps:
+      - name: Check mergeability
+        run: |
+          MERGEABLE=$(gh pr view "$PR_URL" --json mergeable -q '.mergeable')
+          MERGE_STATE=$(gh pr view "$PR_URL" --json mergeStateStatus -q '.mergeStateStatus')
+          
+          echo "Merge state: $MERGE_STATE"
+          
+          if [ "$MERGE_STATE" = "BEHIND" ]; then
+            echo "⚠️ PR is behind base branch"
+            # Optional: trigger rebase
+            # gh pr comment "$PR_URL" --body "@dependabot rebase"
+          fi
+          
+          if [ "$MERGEABLE" = "MERGEABLE" ]; then
+            echo "✅ PR is mergeable"
+          elif [ "$MERGEABLE" = "CONFLICTING" ]; then
+            echo "❌ PR has conflicts, cannot auto-merge"
+            exit 1
+          fi
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Wait for required checks
+        run: |
+          echo "⏳ Waiting for status checks to complete..."
+          gh pr checks "$PR_URL" --watch --interval 15 --required 2>/dev/null || true
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
       - name: Approve PR
         run: gh pr review --approve "$PR_URL"
         env:
@@ -29,7 +58,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Enable auto-merge
-        run: gh pr merge --auto --squash "$PR_URL"
+        run: |
+          gh pr merge --auto --delete-branch --squash "$PR_URL"
+          echo "✅ Auto-merge enabled, PR will merge once conditions are met"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
