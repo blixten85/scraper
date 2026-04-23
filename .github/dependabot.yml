@@ -22,6 +22,7 @@ updates:
       docker-updates:
         patterns:
           - "*"
+    target-branch: "main"
 
   - package-ecosystem: "pip"
     directories:
@@ -45,6 +46,10 @@ updates:
       python-updates:
         patterns:
           - "*"
+    ignore:
+      - dependency-name: "playwright"
+        versions: [">=1.41.0"]
+    target-branch: "main"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -53,6 +58,9 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: "ci"
     labels:
       - "dependencies"
       - "ci"
@@ -61,6 +69,7 @@ updates:
       actions-updates:
         patterns:
           - "*"
+    target-branch: "main"
 
 registries:
   docker-hub:
