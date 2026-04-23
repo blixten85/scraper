@@ -198,7 +198,8 @@ def extract_price(price_text, pattern=None):
     if not price_text:
         return 0
     if pattern and pattern.startswith('text=/'):
-        match = re.search(pattern[6:-1], str(price_text))
+        safe_pattern = re.escape(pattern[6:-1])
+        match = re.search(safe_pattern, str(price_text))
         if match:
             price_text = match.group(0)
     digits = re.sub(r"[^\d]", "", str(price_text))
@@ -218,7 +219,8 @@ async def extract_product(page, element, config):
         price_text = (await price_el.inner_text()).strip() if price_el else ""
         if not price_text and config['price_selector'].startswith('text=/'):
             parent_text = await element.evaluate("el => el.closest('article, div')?.innerText || ''")
-            match = re.search(config['price_selector'][6:-1], parent_text)
+            safe_pattern = re.escape(config['price_selector'][6:-1])
+            match = re.search(safe_pattern, parent_text)
             price_text = match.group(0) if match else ""
         
         link = await link_el.get_attribute("href") if link_el else await element.get_attribute("href")
