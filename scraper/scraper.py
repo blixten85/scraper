@@ -244,22 +244,25 @@ async def extract_product(page, element, config):
 
 
 async def scrape_page_with_retry(context, url, max_retries=3):
-    """Scrape page with exponential backoff"""
+    """Scrape page with exponential backoff - always closes page on failure"""
     for attempt in range(max_retries):
-        page = await context.new_page()
+        page = None
         try:
+            page = await context.new_page()
             await page.goto(url, timeout=60000, wait_until="domcontentloaded")
             await page.wait_for_timeout(random.randint(2000, 5000))
             return page
         except Exception as e:
-            await page.close()
+            if page:
+                await page.close()
             if attempt < max_retries - 1:
                 wait_time = (2 ** attempt) * 5 + random.uniform(1, 3)
                 logger.warning(f"Retry {attempt+1}/{max_retries} for {url} after {wait_time:.1f}s: {e}")
                 stats['retries'] += 1
                 await asyncio.sleep(wait_time)
             else:
-                raise
+                logger.error(f"All retries failed for {url}: {e}")
+                return None
     return None
 
 
@@ -267,6 +270,7 @@ async def scrape_site(context, config):
     page_num = 1
     products_found = 0
     known_urls = set()
+    page = None
     
     try:
         logger.info(f"Starting: {config['name']}")
@@ -279,25 +283,27 @@ async def scrape_site(context, config):
             if not page:
                 break
             
-            for _ in range(random.randint(2, 4)):
-                await page.evaluate("window.scrollBy(0, window.innerHeight * 0.8)")
-                await asyncio.sleep(random.uniform(0.5, 1.5))
-            
-            elements = await page.query_selector_all(config['product_selector'])
-            logger.info(f"  Found {len(elements)} elements")
-            
-            for elem in elements:
-                product = await extract_product(page, elem, config)
-                if product:
-                    was_known = product['url'] in known_urls
-                    known_urls.add(product['url'])
-                    async with write_lock:
-                        write_buffer.append((product, was_known))
-                        if len(write_buffer) >= 10:
-                            await flush_buffer()
-                    products_found += 1
-            
-            await page.close()
+            try:
+                for _ in range(random.randint(2, 4)):
+                    await page.evaluate("window.scrollBy(0, window.innerHeight * 0.8)")
+                    await asyncio.sleep(random.uniform(0.5, 1.5))
+                
+                elements = await page.query_selector_all(config['product_selector'])
+                logger.info(f"  Found {len(elements)} elements")
+                
+                for elem in elements:
+                    product = await extract_product(page, elem, config)
+                    if product:
+                        was_known = product['url'] in known_urls
+                        known_urls.add(product['url'])
+                        async with write_lock:
+                            write_buffer.append((product, was_known))
+                            if len(write_buffer) >= 10:
+                                await flush_buffer()
+                        products_found += 1
+            finally:
+                await page.close()
+                page = None
             
             if config.get('pagination_type') == 'query':
                 separator = '&' if '?' in config['base_url'] else '?'
@@ -312,6 +318,9 @@ async def scrape_site(context, config):
     except Exception as e:
         logger.error(f"Error in {config['name']}: {e}")
         stats['errors'] += 1
+    finally:
+        if page:
+            await page.close()
 
 
 async def flush_buffer():
@@ -394,40 +403,44 @@ async def run_scraper():
         proxy = {"server": PROXY_URL}
         logger.info(f"Using proxy: {PROXY_URL.split('@')[-1] if '@' in PROXY_URL else PROXY_URL}")
     
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=HEADLESS,
-            args=[
-                '--no-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-http2',
-                '--ignore-certificate-errors',
-                '--disable-blink-features=AutomationControlled',
-                '--disable-web-security',
-            ],
-            proxy=proxy
-        )
-        context = await browser.new_context(
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            viewport={'width': 1920, 'height': 1080},
-            locale='sv-SE',
-            timezone_id='Europe/Stockholm',
-            extra_http_headers={
-                'Accept-Language': 'sv-SE,sv;q=0.9,en-US;q=0.8,en;q=0.7',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'DNT': '1',
-            }
-        )
-        sem = asyncio.Semaphore(MAX_CONCURRENT)
-        
-        async def worker(cfg):
-            async with sem:
-                await scrape_site(context, cfg)
-        
-        tasks = [worker(cfg) for cfg in configs]
-        await asyncio.gather(*tasks)
-        
-        await browser.close()
+    browser = None
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=HEADLESS,
+                args=[
+                    '--no-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-http2',
+                    '--ignore-certificate-errors',
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-web-security',
+                    '--disable-zygote',
+                ],
+                proxy=proxy
+            )
+            context = await browser.new_context(
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                viewport={'width': 1920, 'height': 1080},
+                locale='sv-SE',
+                timezone_id='Europe/Stockholm',
+                extra_http_headers={
+                    'Accept-Language': 'sv-SE,sv;q=0.9,en-US;q=0.8,en;q=0.7',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'DNT': '1',
+                }
+            )
+            sem = asyncio.Semaphore(MAX_CONCURRENT)
+            
+            async def worker(cfg):
+                async with sem:
+                    await scrape_site(context, cfg)
+            
+            tasks = [worker(cfg) for cfg in configs]
+            await asyncio.gather(*tasks)
+    finally:
+        if browser:
+            await browser.close()
     
     flush_task.cancel()
     if write_buffer:
@@ -562,28 +575,35 @@ def test_scrape_sync():
     config = request.json
     
     async def _test():
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
-            try:
-                await page.goto(config['base_url'], timeout=30000)
-                await page.wait_for_load_state("domcontentloaded")
-                elements = await page.query_selector_all(config['product_selector'])
-                products = []
-                for elem in elements[:5]:
-                    product = await extract_product(page, elem, config)
-                    if product:
-                        products.append(product)
+        browser = None
+        try:
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
+                try:
+                    await page.goto(config['base_url'], timeout=30000)
+                    await page.wait_for_load_state("domcontentloaded")
+                    elements = await page.query_selector_all(config['product_selector'])
+                    products = []
+                    for elem in elements[:5]:
+                        product = await extract_product(page, elem, config)
+                        if product:
+                            products.append(product)
+                    return {'status': 'success', 'elements_found': len(elements), 'preview': products}
+                finally:
+                    await page.close()
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+        finally:
+            if browser:
                 await browser.close()
-                return {'status': 'success', 'elements_found': len(elements), 'preview': products}
-            except Exception as e:
-                await browser.close()
-                return {'status': 'error', 'message': str(e)}
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    result = loop.run_until_complete(_test())
-    loop.close()
+    try:
+        result = loop.run_until_complete(_test())
+    finally:
+        loop.close()
     return jsonify(result)
 
 
@@ -594,9 +614,12 @@ def trigger_scrape():
         return jsonify({'status': 'error', 'message': 'Already running'}), 409
     
     def run():
-        asyncio.run(run_scraper())
+        try:
+            asyncio.run(run_scraper())
+        except Exception as e:
+            logger.error(f"Scrape thread failed: {e}")
     
-    threading.Thread(target=run).start()
+    threading.Thread(target=run, daemon=True).start()
     return jsonify({'status': 'success'})
 
 
