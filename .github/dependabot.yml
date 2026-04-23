@@ -20,7 +20,7 @@ updates:
       - "/webui"
       - "/alerts"
     registries:
-      - docker-hub
+      - ghcr
     schedule:
       interval: "weekly"
       day: "monday"
