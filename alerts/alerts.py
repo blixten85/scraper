@@ -100,7 +100,7 @@ def send_discord(webhook, title, old_price, new_price, url):
     
     try:
         return requests.post(webhook, json=payload, timeout=10).status_code == 204
-    except:
+    except requests.exceptions.RequestException:
         return False
 
 

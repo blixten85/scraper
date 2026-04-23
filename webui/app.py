@@ -83,7 +83,6 @@ def delete_config(config_id):
 @app.route('/api/scrape', methods=['POST'])
 def trigger_scrape():
     try:
-        # FIX: Anropa rätt endpoint på engine
         resp = engine_request('POST', '/scrape')
         return jsonify(resp.json()), resp.status_code
     except Exception as e:
@@ -114,4 +113,5 @@ def get_products():
         return jsonify({'products': [], 'total': 0})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=3000, debug=False)
+    port = int(os.getenv('PORT', '3000'))
+    app.run(host='0.0.0.0', port=port, debug=False)

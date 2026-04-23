@@ -7,9 +7,7 @@ PostgreSQL-based API - Production version with connection pooling
 import os
 import logging
 import sys
-import csv
-from io import StringIO
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -74,7 +72,7 @@ def get_api_key():
 
 @app.middleware("http")
 async def check_api_key(request: Request, call_next):
-    if request.url.path in ["/health", "/docs", "/openapi.json", "/", "/redoc", "/configs"]:
+    if request.url.path in ["/health", "/docs", "/openapi.json", "/", "/redoc"]:
         return await call_next(request)
     if request.headers.get("X-API-Key") != get_api_key():
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -98,7 +96,7 @@ def health():
         return_db(conn)
         return {"status": "healthy", "database": "connected", "timestamp": datetime.utcnow().isoformat()}
     except Exception as e:
-        return {"status": "unhealthy", "error": str(e)}
+        return {"status": "unhealthy", "error": "Database connection failed"}
 
 @app.get("/products")
 def get_products(limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0), search: Optional[str] = Query(None)):
@@ -126,8 +124,10 @@ def get_stats():
     total_products = cur.fetchone()['count']
     cur.execute("SELECT COUNT(DISTINCT product_id) FROM price_history WHERE timestamp >= NOW() - INTERVAL '1 day'")
     updated_24h = cur.fetchone()['count']
+    cur.execute("SELECT COUNT(*) FROM scraper_config WHERE enabled = 1")
+    active_configs = cur.fetchone()['count']
     return_db(conn)
-    return {"total_products": total_products, "updated_24h": updated_24h, "active_configs": 1}
+    return {"total_products": total_products, "updated_24h": updated_24h, "active_configs": active_configs}
 
 if __name__ == "__main__":
     import uvicorn

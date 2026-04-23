@@ -418,15 +418,14 @@ async def run_scraper():
                 'DNT': '1',
             }
         )
-        sem = asyncio.Semaphore(1)
+        sem = asyncio.Semaphore(MAX_CONCURRENT)
         
         async def worker(cfg):
             async with sem:
                 await scrape_site(context, cfg)
         
-        for cfg in configs:
-            await worker(cfg)
-            await asyncio.sleep(random.uniform(10, 20))
+        tasks = [worker(cfg) for cfg in configs]
+        await asyncio.gather(*tasks)
         
         await browser.close()
     
@@ -498,7 +497,11 @@ def create_config():
         conn.commit()
         return jsonify({'status': 'success', 'id': config_id})
     except psycopg2.errors.UniqueViolation:
+        conn.rollback()
         return jsonify({'status': 'error', 'message': 'Name already exists'}), 400
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
     finally:
         return_db(conn)
 
@@ -508,39 +511,49 @@ def update_config(config_id):
     data = request.json
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("""
-        UPDATE scraper_config SET
-            name = %s, base_url = %s, product_selector = %s, title_selector = %s,
-            price_selector = %s, link_selector = %s, pagination_type = %s,
-            pagination_selector = %s, max_pages = %s, enabled = %s,
-            min_price = %s, max_price = %s, categories = %s, updated_at = NOW()
-        WHERE id = %s
-    """, (
-        data['name'], data['base_url'],
-        data['product_selector'], data['title_selector'],
-        data['price_selector'], data['link_selector'],
-        data.get('pagination_type', 'query'),
-        data.get('pagination_selector'),
-        data.get('max_pages', 10),
-        data.get('enabled', 1),
-        data.get('min_price', 0),
-        data.get('max_price', 999999),
-        json.dumps(data.get('categories', [])),
-        config_id
-    ))
-    conn.commit()
-    return_db(conn)
-    return jsonify({'status': 'success'})
+    try:
+        cur.execute("""
+            UPDATE scraper_config SET
+                name = %s, base_url = %s, product_selector = %s, title_selector = %s,
+                price_selector = %s, link_selector = %s, pagination_type = %s,
+                pagination_selector = %s, max_pages = %s, enabled = %s,
+                min_price = %s, max_price = %s, categories = %s, updated_at = NOW()
+            WHERE id = %s
+        """, (
+            data['name'], data['base_url'],
+            data['product_selector'], data['title_selector'],
+            data['price_selector'], data['link_selector'],
+            data.get('pagination_type', 'query'),
+            data.get('pagination_selector'),
+            data.get('max_pages', 10),
+            data.get('enabled', 1),
+            data.get('min_price', 0),
+            data.get('max_price', 999999),
+            json.dumps(data.get('categories', [])),
+            config_id
+        ))
+        conn.commit()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    finally:
+        return_db(conn)
 
 
 @app.route('/config/<int:config_id>', methods=['DELETE'])
 def delete_config(config_id):
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("UPDATE scraper_config SET enabled = 0 WHERE id = %s", (config_id,))
-    conn.commit()
-    return_db(conn)
-    return jsonify({'status': 'success'})
+    try:
+        cur.execute("UPDATE scraper_config SET enabled = 0 WHERE id = %s", (config_id,))
+        conn.commit()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    finally:
+        return_db(conn)
 
 
 @app.route('/test', methods=['POST'])
