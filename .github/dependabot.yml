@@ -1,7 +1,9 @@
 # .github/dependabot.yml
 version: 2
 updates:
-  # ALLA Docker-uppdateringar i EN PR
+  # ============================================
+  # DOCKER - Alla uppdateringar i EN PR (veckovis)
+  # ============================================
   - package-ecosystem: "docker"
     directories:
       - "/scraper"
@@ -25,8 +27,42 @@ updates:
       all-docker:
         patterns:
           - "*"
+    # Skapa separata PR för säkerhetsuppdateringar
+    target-branch: "main"
 
-  # ALLA Python-uppdateringar i EN PR
+  # ============================================
+  # DOCKER - Säkerhetsuppdateringar (dagligen)
+  # ============================================
+  - package-ecosystem: "docker"
+    directories:
+      - "/scraper"
+      - "/api"
+      - "/webui"
+      - "/alerts"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "security"
+      include: "scope"
+    labels:
+      - "security"
+      - "docker"
+      - "auto-merge"
+      - "critical"
+    # Endast säkerhetsuppdateringar
+    groups:
+      docker-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    target-branch: "main"
+
+  # ============================================
+  # PYTHON/PIP - Alla uppdateringar i EN PR (veckovis)
+  # ============================================
   - package-ecosystem: "pip"
     directories:
       - "/scraper"
@@ -54,8 +90,46 @@ updates:
     ignore:
       - dependency-name: "playwright"
         versions: [">=1.41.0"]
+    # Auto-merge endast utvecklingsberoenden (säkrare approach)
+    # Kommentera ut raderna nedan om du vill auto-merga ALLA Python-uppdateringar
+    # allow:
+    #   - dependency-type: "development"
+    target-branch: "main"
 
-  # GitHub Actions i EN PR
+  # ============================================
+  # PYTHON/PIP - Säkerhetsuppdateringar (dagligen)
+  # ============================================
+  - package-ecosystem: "pip"
+    directories:
+      - "/scraper"
+      - "/api"
+      - "/webui"
+      - "/alerts"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 10
+    versioning-strategy: increase-if-necessary
+    commit-message:
+      prefix: "security"
+      include: "scope"
+    labels:
+      - "security"
+      - "python"
+      - "auto-merge"
+      - "critical"
+    # Endast säkerhetsuppdateringar
+    groups:
+      python-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    target-branch: "main"
+
+  # ============================================
+  # GITHUB ACTIONS - Månadsvis
+  # ============================================
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -70,8 +144,20 @@ updates:
     labels:
       - "dependencies"
       - "ci"
+      - "github-actions"
       - "auto-merge"
     groups:
       all-actions:
         patterns:
           - "*"
+    target-branch: "main"
+
+# ============================================
+# REGISTER INFO (valfritt men rekommenderat)
+# ============================================
+registries:
+  docker-hub:
+    type: docker-registry
+    url: https://registry.hub.docker.com
+    username: ${{ secrets.DOCKERHUB_USERNAME }}
+    password: ${{ secrets.DOCKERHUB_TOKEN }}

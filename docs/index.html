@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Scraper Platform</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #0d1117;
+            color: #c9d1d9;
+        }
+        h1, h2, h3 {
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 10px;
+        }
+        h1 { color: #f0f6fc; }
+        a { color: #58a6ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code {
+            background: #161b22;
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+        }
+        pre {
+            background: #161b22;
+            padding: 16px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #30363d;
+            padding: 10px;
+            text-align: left;
+        }
+        th { background: #161b22; }
+        .badge {
+            margin-right: 5px;
+        }
+        .container {
+            background: #0d1117;
+        }
+        .feature-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .feature-card {
+            background: #161b22;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #30363d;
+        }
+        .btn {
+            display: inline-block;
+            background: #238636;
+            color: white !important;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .btn:hover {
+            background: #2ea043;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>🕷️ Web Scraper Platform</h1>
+    
+    <p>
+        <a href="https://github.com/blixten85/scraper/actions/workflows/docker-build.yml"><img src="https://github.com/blixten85/scraper/actions/workflows/docker-build.yml/badge.svg" alt="Build and Push Images" class="badge"></a>
+        <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" class="badge"></a>
+        <a href="https://github.com/blixten85/scraper"><img src="https://img.shields.io/github/stars/blixten85/scraper?style=social" alt="GitHub Stars" class="badge"></a>
+    </p>
+    
+    <p><strong>Production-ready web scraping platform with PostgreSQL, WebUI, REST API, and price monitoring.</strong></p>
+    
+    <a href="https://github.com/blixten85/scraper" class="btn">⭐ View on GitHub</a>
+    
+    <h2>✨ Features</h2>
+    <div class="feature-list">
+        <div class="feature-card">🔍 <strong>Multi-site scraping</strong><br>Scrape any e-commerce site with CSS selectors</div>
+        <div class="feature-card">🎨 <strong>WebUI</strong><br>Configure and monitor via web interface</div>
+        <div class="feature-card">📡 <strong>REST API</strong><br>Programmatic data access with API key authentication</div>
+        <div class="feature-card">🔔 <strong>Price alerts</strong><br>Discord notifications for price drops</div>
+        <div class="feature-card">🐘 <strong>PostgreSQL</strong><br>Production-grade database</div>
+        <div class="feature-card">🐳 <strong>Docker</strong><br>Run everything with a single docker compose up</div>
+        <div class="feature-card">🔒 <strong>Security</strong><br>API authentication, secrets, no-new-privileges</div>
+        <div class="feature-card">🌐 <strong>Proxy support</strong><br>Optional HTTP/HTTPS proxy for anti-bot protection</div>
+    </div>
+    
+    <h2>🚀 Quick Start</h2>
+    <pre><code># 1. Clone the repository
+git clone https://github.com/blixten85/scraper.git
+cd scraper
+
+# 2. Create .env file with your settings
+cp .env.example .env
+nano .env
+
+# 3. Create directories and set permissions
+mkdir -p ${DOCKER}/scraper/{logs,postgres,playwright-cache}
+sudo chown -R 999:999 ${DOCKER}/scraper/postgres
+
+# 4. Create Discord webhook (optional)
+echo "your-discord-webhook-url" > ${CONFIG}/.secrets/discord_webhook
+
+# 5. Start the platform
+docker compose up -d
+
+# 6. Open WebUI
+# http://localhost:3000</code></pre>
+    
+    <h2>📦 Services</h2>
+    <table>
+        <tr><th>Service</th><th>Port</th><th>Description</th></tr>
+        <tr><td><code>scraper_db</code></td><td>5432 (internal)</td><td>PostgreSQL database</td></tr>
+        <tr><td><code>scraper_engine</code></td><td>5001 (internal)</td><td>Main engine - scrapes sites</td></tr>
+        <tr><td><code>scraper_api</code></td><td>8000</td><td>REST API + Swagger docs</td></tr>
+        <tr><td><code>scraper_webui</code></td><td>3000</td><td>Web interface</td></tr>
+        <tr><td><code>scraper_alerts</code></td><td>-</td><td>Discord notifications</td></tr>
+    </table>
+    
+    <h2>📡 API Examples</h2>
+    <pre><code># Get all products
+curl -H "X-API-Key: ${API_KEY}" http://localhost:8000/products
+
+# Search products
+curl -H "X-API-Key: ${API_KEY}" "http://localhost:8000/products?search=RTX"
+
+# Get price drops
+curl -H "X-API-Key: ${API_KEY}" "http://localhost:8000/deals?min_drop_percent=10"
+
+# Export to CSV
+curl -H "X-API-Key: ${API_KEY}" http://localhost:8000/export/csv > products.csv</code></pre>
+    
+    <h2>📊 Project Status</h2>
+    <table>
+        <tr><td><strong>Version</strong></td><td><img src="https://img.shields.io/github/v/tag/blixten85/scraper?label=version" alt="Version"></td></tr>
+        <tr><td><strong>Status</strong></td><td>✅ Production Ready</td></tr>
+        <tr><td><strong>Last Updated</strong></td><td><img src="https://img.shields.io/github/last-commit/blixten85/scraper" alt="Last Commit"></td></tr>
+    </table>
+    
+    <h2>📝 License</h2>
+    <p>MIT - see <a href="LICENSE">LICENSE</a></p>
+    
+    <hr>
+    
+    <p style="text-align: center; color: #8b949e;">
+        Created by <a href="https://github.com/blixten85">blixten85</a> 🚀
+    </p>
+</body>
+</html>
