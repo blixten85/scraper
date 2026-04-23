@@ -1,1 +1,98 @@
-# [Klistra in hela YAML-koden ovan]
+# .github/dependabot.yml
+# Senast uppdaterad: 2026-04-23
+version: 2
+updates:
+  # ============================================
+  # DOCKER - Alla uppdateringar (veckovis)
+  # ============================================
+  - package-ecosystem: "docker"
+    directories:
+      - "/scraper"
+      - "/api"
+      - "/webui"
+      - "/alerts"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "docker"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"
+      - "auto-merge"
+    groups:
+      docker-updates:
+        patterns:
+          - "*"
+    target-branch: "main"
+
+  # ============================================
+  # PYTHON/PIP - Alla uppdateringar (veckovis)
+  # ============================================
+  - package-ecosystem: "pip"
+    directories:
+      - "/scraper"
+      - "/api"
+      - "/webui"
+      - "/alerts"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 10
+    versioning-strategy: increase-if-necessary
+    commit-message:
+      prefix: "pip"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "python"
+      - "auto-merge"
+    groups:
+      python-updates:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "playwright"
+        versions: ["< 1.41.0"]
+    target-branch: "main"
+
+  # ============================================
+  # GITHUB ACTIONS - Månadsvis
+  # ============================================
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "ci"
+      - "auto-merge"
+    groups:
+      actions-updates:
+        patterns:
+          - "*"
+    target-branch: "main"
+
+# ============================================
+# REGISTER - Docker Hub
+# ============================================
+registries:
+  docker-hub:
+    type: docker-registry
+    url: https://registry.hub.docker.com
+    username: ${{ secrets.DOCKERHUB_USERNAME }}
+    password: ${{ secrets.DOCKERHUB_TOKEN }}
