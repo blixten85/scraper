@@ -170,7 +170,7 @@ async def alerts_loop():
             sent = await check_drops()
             if sent:
                 logger.info(f"Sent {sent} alerts")
-        except Exception as e:
+        except (psycopg2.Error, requests.exceptions.RequestException, OSError) as e:
             logger.error(f"Error: {e}")
         
         try:
