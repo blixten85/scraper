@@ -198,7 +198,7 @@ def extract_price(price_text, pattern=None):
     if not price_text:
         return 0
     if pattern and pattern.startswith('text=/'):
-        safe_pattern = re.escape(pattern[6:-1])
+        safe_pattern = pattern[6:-1]
         match = re.search(safe_pattern, str(price_text))
         if match:
             price_text = match.group(0)
@@ -208,9 +208,9 @@ def extract_price(price_text, pattern=None):
 
 async def extract_product(page, element, config):
     try:
-        title_el = await element.query_selector(config['title_selector'])
-        price_el = await element.query_selector(config['price_selector'])
-        link_el = await element.query_selector(config['link_selector'])
+        title_el = await element.query_selector(config['title_selector']) if config['title_selector'] else None
+        price_el = await element.query_selector(config['price_selector']) if config['price_selector'] else None
+        link_el = await element.query_selector(config['link_selector']) if config['link_selector'] else None
         
         title = (await title_el.inner_text()).strip() if title_el else ""
         if not title and config['title_selector'] == '':
@@ -219,7 +219,7 @@ async def extract_product(page, element, config):
         price_text = (await price_el.inner_text()).strip() if price_el else ""
         if not price_text and config['price_selector'].startswith('text=/'):
             parent_text = await element.evaluate("el => el.closest('article, div')?.innerText || ''")
-            safe_pattern = re.escape(config['price_selector'][6:-1])
+            safe_pattern = config['price_selector'][6:-1]
             match = re.search(safe_pattern, parent_text)
             price_text = match.group(0) if match else ""
         
