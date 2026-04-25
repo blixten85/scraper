@@ -1,37 +1,35 @@
-# .github/labeler.yml
-# Auto-label baserat på ändrade filer
-docker:
+alerts:
   - changed-files:
-      - any-glob-to-any-file: '**/Dockerfile'
-
-python:
-  - changed-files:
-      - any-glob-to-any-file: '**/*.py'
-      - any-glob-to-any-file: '**/requirements.txt'
-
-documentation:
-  - changed-files:
-      - any-glob-to-any-file: '**/*.md'
-
-ci:
-  - changed-files:
-      - any-glob-to-any-file: '.github/**/*'
-
-scraper:
-  - changed-files:
-      - any-glob-to-any-file: 'scraper/**/*'
+    - any-glob-to-any-file: 'alerts/**'
 
 api:
   - changed-files:
-      - any-glob-to-any-file: 'api/**/*'
+    - any-glob-to-any-file: 'api/**'
+
+scraper:
+  - changed-files:
+    - any-glob-to-any-file: 'scraper/**'
 
 webui:
   - changed-files:
-      - any-glob-to-any-file: 'webui/**/*'
+    - any-glob-to-any-file: 'webui/**'
 
-alerts:
+ci:
   - changed-files:
-      - any-glob-to-any-file: 'alerts/**/*'
+    - any-glob-to-any-file: '.github/**'
 
-auto-merge:
-  - head-branch: ['^dependabot/']
+docker:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/Dockerfile'
+      - 'docker-compose*.yml'
+
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**.md'
+      - 'docs/**'
+
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file: '**/requirements*.txt'

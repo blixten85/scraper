@@ -2,6 +2,7 @@ name: Auto Commit Documentation
 
 on:
   push:
+    branches: [main]
     paths:
       - '**.md'
       - '**.py'
@@ -11,12 +12,13 @@ on:
       - '**.sh'
       - 'Dockerfile'
       - 'docker-compose.yml'
-      - '!**.github/workflows/**'
+      - '!.github/workflows/**'
   workflow_dispatch:
 
 jobs:
   commit:
     runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     permissions:
       contents: write
     steps:
@@ -24,15 +26,15 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 2
-      
+
       - name: Check and amend commit message
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           COMMIT_MSG=$(git log -1 --pretty=%B)
           CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | head -5 | tr '\n' ', ' | sed 's/,$//')
-          
+
           if echo "$COMMIT_MSG" | grep -qE "docs:|feat:|fix:|ci:|refactor:|test:|chore:"; then
             echo "Commit message already descriptive, skipping amend"
           else
@@ -45,7 +47,7 @@ jobs:
             else
               PREFIX="chore"
             fi
-            
+
             git commit --amend -m "$PREFIX: update $CHANGED_FILES [skip ci]"
             git push --force-with-lease
           fi

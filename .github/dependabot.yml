@@ -1,70 +1,61 @@
 version: 2
 updates:
-  # DOCKER - Veckovis
-  - package-ecosystem: "docker"
-    directories:
-      - "/scraper"
-      - "/api"
-      - "/webui"
-      - "/alerts"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "Europe/Stockholm"
-    open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "docker"
-      - "auto-merge"
-    groups:
-      docker:
-        patterns:
-          - "*"
-    target-branch: "main"
-
-  # PYTHON/PIP - Veckovis
   - package-ecosystem: "pip"
-    directories:
-      - "/scraper"
-      - "/api"
-      - "/webui"
-      - "/alerts"
+    directory: "/scraper"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "09:00"
       timezone: "Europe/Stockholm"
-    open-pull-requests-limit: 5
-    versioning-strategy: increase-if-necessary
     labels:
       - "dependencies"
-      - "python"
       - "auto-merge"
-    groups:
-      python:
-        patterns:
-          - "*"
-    ignore:
-      - dependency-name: "playwright"
-        versions: [">=1.41.0"]
-    target-branch: "main"
+    open-pull-requests-limit: 5
 
-  # GITHUB ACTIONS - Månadsvis
+  - package-ecosystem: "pip"
+    directory: "/webui"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Stockholm"
+    labels:
+      - "dependencies"
+      - "auto-merge"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "pip"
+    directory: "/api"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Stockholm"
+    labels:
+      - "dependencies"
+      - "auto-merge"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "pip"
+    directory: "/alerts"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Stockholm"
+    labels:
+      - "dependencies"
+      - "auto-merge"
+    open-pull-requests-limit: 5
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
       day: "monday"
       time: "09:00"
       timezone: "Europe/Stockholm"
-    open-pull-requests-limit: 3
     labels:
-      - "dependencies"
       - "ci"
       - "auto-merge"
-    groups:
-      actions:
-        patterns:
-          - "*"
-    target-branch: "main"
+    open-pull-requests-limit: 10
