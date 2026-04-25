@@ -6,6 +6,7 @@ WebUI Control Plane - Proxyrar anrop till API och Scraper Engine
 
 import os
 import logging
+import re
 import requests
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
@@ -13,6 +14,7 @@ from flask_cors import CORS
 
 SCRAPER_API = os.getenv('SCRAPER_API', 'http://scraper_api:8000')
 SCRAPER_ENGINE = os.getenv('SCRAPER_ENGINE', 'http://scraper_engine:5001')
+ENGINE_PATH_RE = re.compile(r"^/[A-Za-z0-9._~!$&'()*+,;=:@/-]*$")
 
 app = Flask(__name__)
 CORS(app)
@@ -34,6 +36,10 @@ def get_api_key():
     return API_KEY
 
 def engine_request(method, path, **kwargs):
+    if not isinstance(path, str) or not path.startswith('/'):
+        raise ValueError("Invalid engine request path")
+    if '://' in path or not ENGINE_PATH_RE.fullmatch(path):
+        raise ValueError("Unsafe engine request path")
     url = f"{SCRAPER_ENGINE}{path}"
     return requests.request(method, url, **kwargs)
 
