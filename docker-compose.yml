@@ -28,7 +28,7 @@ services:
         max-file: "3"
 
   scraper:
-    image: ghcr.io/blixten85/scraper:latest
+    image: ghcr.io/blixten85/scraper-engine:latest
     container_name: scraper_engine
     restart: unless-stopped
     pull_policy: always
