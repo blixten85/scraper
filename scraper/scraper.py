@@ -153,7 +153,7 @@ def init_db():
         (name, base_url, product_selector, title_selector, price_selector, link_selector, max_pages)
         VALUES 
         ('Inet.se', 'https://www.inet.se/kategori/datorkomponenter',
-         'a[href*=\"/produkt/\"]', '', 'text=/\\d[\\d\\s]*\\s*kr/', '', 5)
+         'a[href*="/produkt/"]', '', 'text=/\\d[\\d\\s]*\\s*kr/', '', 5)
         """)
         cur.execute("""
         INSERT INTO scraper_config 
@@ -198,8 +198,8 @@ def extract_price(price_text, pattern=None):
     if not price_text:
         return 0
     if pattern and pattern.startswith('text=/'):
-        safe_pattern = pattern[6:-1]
-        match = re.search(safe_pattern, str(price_text))
+        # Use a fixed price pattern instead of user-supplied regex to prevent ReDoS
+        match = re.search(r'\d[\d\s]*(?:kr|:-|\.\d{2})?', str(price_text))
         if match:
             price_text = match.group(0)
     digits = re.sub(r"[^\d]", "", str(price_text))
@@ -219,8 +219,8 @@ async def extract_product(page, element, config):
         price_text = (await price_el.inner_text()).strip() if price_el else ""
         if not price_text and config['price_selector'].startswith('text=/'):
             parent_text = await element.evaluate("el => el.closest('article, div')?.innerText || ''")
-            safe_pattern = config['price_selector'][6:-1]
-            match = re.search(safe_pattern, parent_text)
+            # Use a fixed price pattern instead of user-supplied regex to prevent ReDoS
+            match = re.search(r'\d[\d\s]*(?:kr|:-|\.\d{2})?', parent_text)
             price_text = match.group(0) if match else ""
         
         link = await link_el.get_attribute("href") if link_el else await element.get_attribute("href")
@@ -519,7 +519,8 @@ def create_config():
         return jsonify({'status': 'error', 'message': 'Name already exists'}), 400
     except Exception as e:
         conn.rollback()
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        logger.error(f"Create config error: {e}")
+        return jsonify({'status': 'error', 'message': 'Internal server error'}), 500
     finally:
         return_db(conn)
 
@@ -554,7 +555,8 @@ def update_config(config_id):
         return jsonify({'status': 'success'})
     except Exception as e:
         conn.rollback()
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        logger.error(f"Update config error: {e}")
+        return jsonify({'status': 'error', 'message': 'Internal server error'}), 500
     finally:
         return_db(conn)
 
@@ -569,7 +571,8 @@ def delete_config(config_id):
         return jsonify({'status': 'success'})
     except Exception as e:
         conn.rollback()
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        logger.error(f"Delete config error: {e}")
+        return jsonify({'status': 'error', 'message': 'Internal server error'}), 500
     finally:
         return_db(conn)
 

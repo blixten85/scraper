@@ -70,7 +70,8 @@ def create_config():
         resp = engine_request('POST', '/config', json=request.json)
         return jsonify(resp.json()), resp.status_code
     except Exception as e:
-        return jsonify({'error': str(e)}), 503
+        logger.error(f"Create config error: {e}")
+        return jsonify({'error': 'Internal server error'}), 503
 
 @app.route('/api/configs/<int:config_id>', methods=['DELETE'])
 def delete_config(config_id):
@@ -78,7 +79,8 @@ def delete_config(config_id):
         resp = engine_request('DELETE', f'/config/{config_id}')
         return jsonify(resp.json()), resp.status_code
     except Exception as e:
-        return jsonify({'error': str(e)}), 503
+        logger.error(f"Delete config error: {e}")
+        return jsonify({'error': 'Internal server error'}), 503
 
 @app.route('/api/scrape', methods=['POST'])
 def trigger_scrape():
@@ -86,7 +88,8 @@ def trigger_scrape():
         resp = engine_request('POST', '/scrape')
         return jsonify(resp.json()), resp.status_code
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 503
+        logger.error(f"Trigger scrape error: {e}")
+        return jsonify({'status': 'error', 'message': 'Internal server error'}), 503
 
 @app.route('/api/test', methods=['POST'])
 def test_scrape():
@@ -94,7 +97,8 @@ def test_scrape():
         resp = engine_request('POST', '/test', json=request.json)
         return jsonify(resp.json()), resp.status_code
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 503
+        logger.error(f"Test scrape error: {e}")
+        return jsonify({'status': 'error', 'message': 'Internal server error'}), 503
 
 @app.route('/api/stats')
 def get_stats():
