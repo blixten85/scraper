@@ -295,13 +295,22 @@ async def scrape_site(context, config):
             cookies_done[0] = True
 
     async def _infinite_scroll(page, rounds=30):
+        sel_js = json.dumps(config['product_selector'])
         prev = 0
         for _ in range(rounds):
-            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            await asyncio.sleep(random.uniform(1.5, 2.5))
-            count = await page.evaluate(
-                f"document.querySelectorAll({json.dumps(config['product_selector'])}).length"
-            )
+            try:
+                await asyncio.wait_for(
+                    page.evaluate("window.scrollTo(0, document.body.scrollHeight)"),
+                    timeout=10
+                )
+                await asyncio.sleep(random.uniform(1.5, 2.5))
+                count = await asyncio.wait_for(
+                    page.evaluate(f"document.querySelectorAll({sel_js}).length"),
+                    timeout=15
+                )
+            except asyncio.TimeoutError:
+                logger.warning("evaluate() timed out during scroll, stopping early")
+                break
             if count == prev:
                 break
             prev = count
