@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/blixten85/scraper/compare/v1.2.0...v1.2.1) (2026-04-25)
+
+
+### Bug Fixes
+
+* **scraper:** set scraping_active flag in manual trigger path ([a823ec2](https://github.com/blixten85/scraper/commit/a823ec2d3cbc537d412c32d6b13a11425d5f4ba5))
+
 ## [1.2.0](https://github.com/blixten85/scraper/compare/v1.1.0...v1.2.0) (2026-04-25)
 
 
