@@ -19,13 +19,22 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Auto-merge patch and minor updates
+      - name: Auto-merge patch and minor updates (github_actions — no build triggered)
         if: |
+          steps.metadata.outputs.package-ecosystem == 'github_actions' && (
           steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor'
-        run: |
-          gh pr merge --auto --delete-branch --squash "$PR_URL"
-          echo "Auto-merge: ${{ steps.metadata.outputs.dependency-names }} (${{ steps.metadata.outputs.update-type }})"
+          steps.metadata.outputs.update-type == 'version-update:semver-minor')
+        run: gh pr merge --admin --delete-branch --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Auto-merge patch and minor updates (other ecosystems — wait for builds)
+        if: |
+          steps.metadata.outputs.package-ecosystem != 'github_actions' && (
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor')
+        run: gh pr merge --auto --delete-branch --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
