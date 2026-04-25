@@ -1,5 +1,6 @@
 # 🕷️ Web Scraper Platform
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/92cdeec40df540de9f0c1be5e788d701)](https://app.codacy.com/gh/blixten85/scraper?utm_source=github.com&utm_medium=referral&utm_content=blixten85/scraper&utm_campaign=Badge_Grade)
 [![Scraper](https://github.com/blixten85/scraper/actions/workflows/scraper-build.yml/badge.svg)](https://github.com/blixten85/scraper/actions/workflows/scraper-build.yml)
 [![API](https://github.com/blixten85/scraper/actions/workflows/api-build.yml/badge.svg)](https://github.com/blixten85/scraper/actions/workflows/api-build.yml)
 [![WebUI](https://github.com/blixten85/scraper/actions/workflows/webui-build.yml/badge.svg)](https://github.com/blixten85/scraper/actions/workflows/webui-build.yml)
