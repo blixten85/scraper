@@ -284,11 +284,16 @@ async def scrape_site(context, config):
                 break
             
             try:
-                for _ in range(random.randint(2, 4)):
-                    await page.evaluate("window.scrollBy(0, window.innerHeight * 0.8)")
-                    await asyncio.sleep(random.uniform(0.5, 1.5))
-                
-                elements = await page.query_selector_all(config['product_selector'])
+                # Scroll until no new elements appear (handles infinite scroll)
+                prev_count = 0
+                for _ in range(15):
+                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                    await asyncio.sleep(random.uniform(1.5, 2.5))
+                    elements = await page.query_selector_all(config['product_selector'])
+                    if len(elements) == prev_count:
+                        break
+                    prev_count = len(elements)
+
                 logger.info(f"  Found {len(elements)} elements")
                 
                 for elem in elements:
