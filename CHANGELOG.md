@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.2.0](https://github.com/blixten85/scraper/compare/v1.1.0...v1.2.0) (2026-04-25)
+
+
+### Features
+
+* **scraper:** add subcategory pagination mode and fix inet.se config ([a0e7bb2](https://github.com/blixten85/scraper/commit/a0e7bb203561cb0fbbc05a68ae3a2be4dddc1f14))
+
+
+### Bug Fixes
+
+* **docker:** replace curl healthcheck with python urllib ([bbe1a18](https://github.com/blixten85/scraper/commit/bbe1a18b1e635199f08186c4c3767f7bf5692273))
+* **docker:** use correct scraper-engine image name ([7a093de](https://github.com/blixten85/scraper/commit/7a093de8ec0b109442455aa2841c2277df03a358))
+* **export:** wire up CSV export through webui ([43acda7](https://github.com/blixten85/scraper/commit/43acda7e97e83f72a9a21183a0ccb37f916b97ad))
+* **scraper:** add 60s hard timeout around element extraction loop ([02fdc70](https://github.com/blixten85/scraper/commit/02fdc7099836684d2589709c7d93cc6da1b040fa))
+* **scraper:** add asyncio timeout to page.evaluate() calls in infinite scroll ([f8616d4](https://github.com/blixten85/scraper/commit/f8616d4a9ee640c82dfd5edfe28d3d4c177f68e9))
+* **scraper:** set 30s default timeout on all page operations ([2c02e75](https://github.com/blixten85/scraper/commit/2c02e75756ad7379ce76e70ca211ec3ddc8cda9b))
+* **webui:** add SSRF path validation to engine_request ([f3c68f8](https://github.com/blixten85/scraper/commit/f3c68f88129ce5e01306df088ad4eba66488185f))
+
 ## [1.1.0](https://github.com/blixten85/scraper/compare/v1.0.1...v1.1.0) (2026-04-25)
 
 
