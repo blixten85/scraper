@@ -267,6 +267,7 @@ async def scrape_page_with_retry(context, url, max_retries=3):
         try:
             page = await context.new_page()
             await page.goto(url, timeout=60000, wait_until="domcontentloaded")
+            page.set_default_timeout(30000)
             await page.wait_for_timeout(random.randint(2000, 5000))
             return page
         except Exception as e:
