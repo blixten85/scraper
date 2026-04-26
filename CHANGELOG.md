@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/blixten85/scraper/compare/v1.3.1...v1.4.0) (2026-04-26)
+
+
+### Features
+
+* **webui:** redesign UI with dark/light theme toggle ([db27030](https://github.com/blixten85/scraper/commit/db27030480b1091e407ec39378e5599e30f5f01c))
+
 ## [1.3.1](https://github.com/blixten85/scraper/compare/v1.3.0...v1.3.1) (2026-04-26)
 
 
