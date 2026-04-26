@@ -218,8 +218,8 @@ async def accept_cookies(page):
                 await btn.click()
                 await asyncio.sleep(1.5)
                 return True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Cookie button '{text}' not clickable: {e}")
     return False
 
 
@@ -347,8 +347,8 @@ async def scrape_site(context, config):
                             link = link.rstrip('/')
                             if link not in visited and link != base:
                                 queue.append(link)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Pagination selector failed: {e}")
 
                 await _infinite_scroll(page)
                 elements = await page.query_selector_all(config['product_selector'])

@@ -5,7 +5,6 @@ Alert service with cooldown in PostgreSQL
 """
 
 import asyncio
-import datetime
 import os
 import logging
 import sys
@@ -176,7 +175,7 @@ async def alerts_loop():
         try:
             await asyncio.wait_for(shutdown_event.wait(), timeout=CHECK_INTERVAL)
         except asyncio.TimeoutError:
-            pass
+            continue
     
     logger.info(f"Alerts stopped. Total sent: {alerts_sent}")
 
