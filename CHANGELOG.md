@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/blixten85/scraper/compare/v1.2.1...v1.2.2) (2026-04-26)
+
+
+### Bug Fixes
+
+* resolve code scanning alerts ([ac1c657](https://github.com/blixten85/scraper/commit/ac1c657c21f20d3386b73150ababa11b69b226b6))
+
 ## [1.2.1](https://github.com/blixten85/scraper/compare/v1.2.0...v1.2.1) (2026-04-25)
 
 
