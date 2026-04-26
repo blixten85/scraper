@@ -87,6 +87,17 @@
             </div>
         </div>
 
+        <!-- Deals -->
+        <div class="card mb-4" id="dealsCard">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-tag me-1 text-success"></i> Recent price drops</span>
+                <span class="text-muted" style="font-size:0.75rem;">Last 7 days</span>
+            </div>
+            <div id="dealsContent">
+                <div class="card-body text-muted" style="font-size:0.875rem;">Loading...</div>
+            </div>
+        </div>
+
         <!-- Products -->
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -94,7 +105,7 @@
                 <input type="text" id="searchInput" class="search-input form-control"
                        style="max-width: 220px;"
                        placeholder="&#xF52A; Search..."
-                       oninput="loadProducts()">
+                       oninput="resetAndLoad()">
             </div>
             <div class="table-responsive">
                 <table class="table table-hover">
@@ -110,14 +121,50 @@
                     </tbody>
                 </table>
             </div>
+            <div class="card-body border-top py-2 d-flex justify-content-between align-items-center" id="pagination" style="display:none!important">
+                <span class="text-muted" style="font-size:0.8rem;" id="paginationInfo"></span>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" id="prevBtn" onclick="prevPage()" disabled>
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" id="nextBtn" onclick="nextPage()" disabled>
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Price History Modal -->
+    <div class="modal fade" id="historyModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="historyModalTitle">Price history</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <canvas id="historyChart" height="120"></canvas>
+                    <div id="historyEmpty" class="empty-state" style="display:none;">
+                        <i class="bi bi-graph-up"></i>
+                        No price history available yet
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="/static/script.js"></script>
     <script>
+        const PAGE_SIZE = 50;
+        let currentPage = 0;
+        let totalProducts = 0;
+        let historyChart = null;
+
         function toggleTheme() {
             const html = document.documentElement;
             const next = html.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
@@ -131,7 +178,6 @@
             document.getElementById('themeIcon').className = dark ? 'bi bi-moon-stars-fill' : 'bi bi-sun-fill';
         }
 
-        // Mark active nav link
         document.querySelectorAll('.nav-link').forEach(l => {
             if (l.getAttribute('href') === window.location.pathname) l.classList.add('active');
         });
@@ -146,29 +192,136 @@
             })
             .catch(() => {});
 
+        function resetAndLoad() {
+            currentPage = 0;
+            loadProducts();
+        }
+
+        function prevPage() {
+            if (currentPage > 0) { currentPage--; loadProducts(); }
+        }
+
+        function nextPage() {
+            if ((currentPage + 1) * PAGE_SIZE < totalProducts) { currentPage++; loadProducts(); }
+        }
+
         function loadProducts() {
             const search = document.getElementById('searchInput').value;
-            fetch(`/api/products?limit=50&search=${encodeURIComponent(search)}`)
+            const offset = currentPage * PAGE_SIZE;
+            fetch(`/api/products?limit=${PAGE_SIZE}&offset=${offset}&search=${encodeURIComponent(search)}`)
                 .then(r => r.json())
                 .then(data => {
+                    totalProducts = data.total || 0;
                     const tbody = document.getElementById('productsTable');
+                    const pg = document.getElementById('pagination');
+
                     if (!data.products || data.products.length === 0) {
                         tbody.innerHTML = `<tr><td colspan="3">
                             <div class="empty-state">
                                 <i class="bi bi-inbox"></i>
                                 No products found
                             </div></td></tr>`;
+                        pg.style.display = 'none';
                         return;
                     }
+
                     tbody.innerHTML = data.products.map(p => `
-                        <tr>
-                            <td><a class="product-link" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">${escapeHtml(p.title)}</a></td>
+                        <tr style="cursor:pointer" data-pid="${p.id}" data-ptitle="${escapeHtml(p.title)}" onclick="showHistoryFromRow(this)">
+                            <td><a class="product-link" href="${escapeHtml(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(p.title)}</a></td>
                             <td><span class="price-badge">${formatPrice(p.current_price)}</span></td>
                             <td class="date-cell">${formatDate(p.last_updated)}</td>
                         </tr>
                     `).join('');
+
+                    const start = offset + 1;
+                    const end = Math.min(offset + data.products.length, totalProducts);
+                    document.getElementById('paginationInfo').textContent = `${start}–${end} of ${totalProducts.toLocaleString()}`;
+                    document.getElementById('prevBtn').disabled = currentPage === 0;
+                    document.getElementById('nextBtn').disabled = end >= totalProducts;
+                    pg.style.removeProperty('display');
                 })
                 .catch(() => showToast('Failed to load products', 'danger'));
+        }
+
+        function showHistoryFromRow(row) {
+            showHistory(row.dataset.pid, row.dataset.ptitle);
+        }
+
+        function showHistory(productId, title) {
+            document.getElementById('historyModalTitle').textContent = title;
+            document.getElementById('historyEmpty').style.display = 'none';
+            document.getElementById('historyChart').style.display = 'block';
+
+            if (historyChart) { historyChart.destroy(); historyChart = null; }
+
+            fetch(`/api/products/${productId}/history`)
+                .then(r => r.json())
+                .then(data => {
+                    const modal = new bootstrap.Modal(document.getElementById('historyModal'));
+                    modal.show();
+                    if (!data.history || data.history.length === 0) {
+                        document.getElementById('historyChart').style.display = 'none';
+                        document.getElementById('historyEmpty').style.display = 'block';
+                        return;
+                    }
+                    const labels = data.history.map(h => new Date(h.timestamp).toLocaleDateString('sv-SE'));
+                    const prices = data.history.map(h => h.price);
+                    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                    const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+                    const textColor = isDark ? '#a0aec0' : '#718096';
+                    historyChart = new Chart(document.getElementById('historyChart'), {
+                        type: 'line',
+                        data: {
+                            labels,
+                            datasets: [{
+                                label: 'Price (SEK)',
+                                data: prices,
+                                borderColor: '#3b82f6',
+                                backgroundColor: 'rgba(59,130,246,0.1)',
+                                borderWidth: 2,
+                                pointRadius: prices.length > 30 ? 0 : 3,
+                                tension: 0.3,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: { ticks: { color: textColor, maxTicksLimit: 8 }, grid: { color: gridColor } },
+                                y: { ticks: { color: textColor, callback: v => v.toLocaleString() + ' kr' }, grid: { color: gridColor } }
+                            }
+                        }
+                    });
+                })
+                .catch(() => showToast('Could not load history', 'danger'));
+        }
+
+        function loadDeals() {
+            fetch('/api/deals')
+                .then(r => r.json())
+                .then(data => {
+                    const el = document.getElementById('dealsContent');
+                    if (!data.deals || data.deals.length === 0) {
+                        el.innerHTML = `<div class="card-body text-muted" style="font-size:0.875rem;">No price drops detected in the last 7 days.</div>`;
+                        return;
+                    }
+                    el.innerHTML = `<div class="table-responsive"><table class="table table-hover">
+                        <thead><tr>
+                            <th>Product</th><th>Now</th><th>Was</th><th>Drop</th>
+                        </tr></thead>
+                        <tbody>${data.deals.map(d => `
+                            <tr style="cursor:pointer" data-pid="${d.id}" data-ptitle="${escapeHtml(d.title)}" onclick="showHistoryFromRow(this)">
+                                <td><a class="product-link" href="${escapeHtml(d.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${escapeHtml(d.title)}</a></td>
+                                <td><span class="price-badge">${formatPrice(d.current_price)}</span></td>
+                                <td class="date-cell">${formatPrice(d.old_price)}</td>
+                                <td><span class="discount-badge">-${d.discount_pct}%</span></td>
+                            </tr>`).join('')}
+                        </tbody></table></div>`;
+                })
+                .catch(() => {
+                    document.getElementById('dealsContent').innerHTML = `<div class="card-body text-muted" style="font-size:0.875rem;">Could not load deals.</div>`;
+                });
         }
 
         function triggerScrape() {
@@ -181,6 +334,7 @@
 
         updateThemeIcon();
         loadProducts();
+        loadDeals();
         startStatsPolling(30000);
     </script>
 </body>

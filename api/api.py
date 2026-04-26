@@ -128,6 +128,61 @@ def get_stats():
     return_db(conn)
     return {"total_products": total_products, "updated_24h": updated_24h, "active_configs": active_configs}
 
+@app.get("/products/{product_id}/history")
+def get_product_history(product_id: int):
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("SELECT id, title, current_price FROM products WHERE id = %s", (product_id,))
+        product = cur.fetchone()
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+        cur.execute(
+            "SELECT price, timestamp FROM price_history WHERE product_id = %s ORDER BY timestamp ASC LIMIT 100",
+            (product_id,)
+        )
+        history = cur.fetchall()
+        return {"product_id": product_id, "title": product["title"], "history": history}
+    finally:
+        return_db(conn)
+
+
+@app.get("/deals")
+def get_deals():
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT
+                p.id, p.title, p.url, p.current_price,
+                ph_old.price AS old_price,
+                ROUND((1 - p.current_price::numeric / NULLIF(ph_old.price, 0)) * 100)::int AS discount_pct,
+                ph_new.timestamp AS updated_at
+            FROM products p
+            JOIN LATERAL (
+                SELECT price, timestamp FROM price_history
+                WHERE product_id = p.id
+                ORDER BY timestamp DESC LIMIT 1
+            ) ph_new ON true
+            JOIN LATERAL (
+                SELECT price FROM price_history
+                WHERE product_id = p.id
+                  AND timestamp <= NOW() - INTERVAL '1 day'
+                ORDER BY timestamp DESC LIMIT 1
+            ) ph_old ON true
+            WHERE p.current_price > 0
+              AND ph_old.price > 0
+              AND p.current_price < ph_old.price
+              AND ph_new.timestamp >= NOW() - INTERVAL '7 days'
+            ORDER BY discount_pct DESC
+            LIMIT 50
+        """)
+        deals = cur.fetchall()
+        return {"deals": deals}
+    finally:
+        return_db(conn)
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -122,6 +122,31 @@ def get_products():
     except Exception as e:
         return jsonify({'products': [], 'total': 0})
 
+@app.route('/api/products/<int:product_id>/history')
+def get_product_history(product_id):
+    try:
+        resp = api_request('GET', f'/products/{product_id}/history')
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({'history': []}), 200
+
+@app.route('/api/deals')
+def get_deals():
+    try:
+        resp = api_request('GET', '/deals', params=request.args)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({'deals': []}), 200
+
+@app.route('/api/detect', methods=['POST'])
+def detect_selectors():
+    try:
+        resp = engine_request('POST', '/detect', json=request.json)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        logger.error(f"Detect error: {e}")
+        return jsonify({'status': 'error', 'message': 'Internal server error'}), 503
+
 @app.route('/api/export/csv')
 def export_csv():
     try:

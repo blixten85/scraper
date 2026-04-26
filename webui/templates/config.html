@@ -57,7 +57,12 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">URL</label>
-                            <input type="url" class="form-control" id="cfgUrl" required placeholder="https://www.example.com/products">
+                            <div class="d-flex gap-2">
+                                <input type="url" class="form-control" id="cfgUrl" required placeholder="https://www.example.com/products">
+                                <button type="button" class="btn btn-outline-secondary text-nowrap" id="detectBtn" onclick="autoDetect()" title="Auto-detect selectors">
+                                    <i class="bi bi-magic" id="detectIcon"></i> Detect
+                                </button>
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Product container selector</label>
@@ -176,6 +181,38 @@
             document.getElementById('cfgLink').value = t.link_selector;
             document.getElementById('addForm').style.display = 'block';
             document.getElementById('addForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function autoDetect() {
+            const url = document.getElementById('cfgUrl').value.trim();
+            if (!url) { showToast('Enter a URL first', 'warning'); return; }
+            const btn = document.getElementById('detectBtn');
+            const icon = document.getElementById('detectIcon');
+            btn.disabled = true;
+            icon.className = 'bi bi-arrow-repeat spin';
+            fetch('/api/detect', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ url })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.status === 'success') {
+                    if (res.product_selector) document.getElementById('cfgProduct').value = res.product_selector;
+                    if (res.title_selector)   document.getElementById('cfgTitle').value   = res.title_selector;
+                    if (res.price_selector)   document.getElementById('cfgPrice').value   = res.price_selector;
+                    if (res.link_selector)    document.getElementById('cfgLink').value    = res.link_selector;
+                    const found = [res.product_selector, res.title_selector, res.price_selector, res.link_selector].filter(Boolean).length;
+                    showToast(`Detected ${found}/4 selectors`, found >= 3 ? 'success' : 'warning');
+                } else {
+                    showToast('Detection failed: ' + (res.message || 'Unknown error'), 'danger');
+                }
+            })
+            .catch(() => showToast('Detection request failed', 'danger'))
+            .finally(() => {
+                btn.disabled = false;
+                icon.className = 'bi bi-magic';
+            });
         }
 
         function addConfig(e) {

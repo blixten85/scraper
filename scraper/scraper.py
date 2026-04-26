@@ -726,6 +726,130 @@ def test_scrape_sync():
     return jsonify(result)
 
 
+@app.route('/detect', methods=['POST'])
+def detect_selectors():
+    """Auto-detect CSS selectors for a given URL using Playwright heuristics"""
+    data = request.json or {}
+    url = data.get('url', '').strip()
+    if not url or not url.startswith(('http://', 'https://')):
+        return jsonify({'status': 'error', 'message': 'Invalid URL'}), 400
+
+    detect_js = """() => {
+        const PRICE_RE = /\\d[\\d\\s]*\\s*(kr|SEK|:-)/i;
+        const selectorCount = {};
+
+        function getSelector(el) {
+            const tag = el.tagName.toLowerCase();
+            if (el.className && typeof el.className === 'string' && el.className.trim()) {
+                const classes = el.className.trim().split(/\\s+/)
+                    .filter(c => c && !/\\d{5,}/.test(c))
+                    .slice(0, 2).join('.');
+                if (classes) return tag + '.' + classes;
+            }
+            return null;
+        }
+
+        document.querySelectorAll('article, li, div, section').forEach(el => {
+            const sel = getSelector(el);
+            if (sel) selectorCount[sel] = (selectorCount[sel] || 0) + 1;
+        });
+
+        const candidates = Object.entries(selectorCount)
+            .filter(([, count]) => count >= 3)
+            .sort((a, b) => b[1] - a[1]);
+
+        let productSelector = null, titleSelector = null,
+            priceSelector = null, linkSelector = null;
+
+        for (const [sel] of candidates) {
+            const elements = Array.from(document.querySelectorAll(sel));
+            const withPrice = elements.slice(0, 15).filter(el => PRICE_RE.test(el.innerText));
+            if (withPrice.length < 2) continue;
+
+            productSelector = sel;
+            const container = withPrice[0];
+
+            // Title: heading first, then class-based
+            const heading = container.querySelector('h1, h2, h3, h4');
+            if (heading) {
+                const tag = heading.tagName.toLowerCase();
+                const cls = (heading.className && typeof heading.className === 'string')
+                    ? heading.className.trim().split(/\\s+/)[0] : '';
+                titleSelector = cls ? tag + '.' + cls : tag;
+            } else {
+                const titleEl = container.querySelector('[class*="title"], [class*="name"]');
+                if (titleEl) {
+                    const tag = titleEl.tagName.toLowerCase();
+                    const cls = (titleEl.className || '').trim().split(/\\s+/)[0];
+                    titleSelector = cls ? tag + '.' + cls : tag;
+                }
+            }
+
+            // Price: leaf node with price text
+            const walkPrice = (el) => {
+                if (priceSelector) return;
+                if (el.children.length === 0) {
+                    if (PRICE_RE.test(el.textContent)) {
+                        const tag = el.tagName.toLowerCase();
+                        const cls = (el.className && typeof el.className === 'string')
+                            ? el.className.trim().split(/\\s+/)[0] : '';
+                        priceSelector = cls ? tag + '.' + cls : tag;
+                    }
+                    return;
+                }
+                Array.from(el.children).forEach(walkPrice);
+            };
+            walkPrice(container);
+
+            // Link: first anchor
+            const anchor = container.querySelector('a[href]');
+            if (anchor) {
+                const cls = (anchor.className && typeof anchor.className === 'string')
+                    ? anchor.className.trim().split(/\\s+/)[0] : '';
+                linkSelector = cls ? 'a.' + cls : 'a';
+            }
+
+            break;
+        }
+
+        return {
+            product_selector: productSelector,
+            title_selector: titleSelector,
+            price_selector: priceSelector,
+            link_selector: linkSelector
+        };
+    }"""
+
+    async def _detect():
+        browser = None
+        try:
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
+                try:
+                    await page.goto(url, timeout=30000)
+                    await page.wait_for_load_state("domcontentloaded")
+                    await accept_cookies(page)
+                    await asyncio.sleep(2)
+                    result = await page.evaluate(detect_js)
+                    return {'status': 'success', **result}
+                finally:
+                    await page.close()
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+        finally:
+            if browser:
+                await browser.close()
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        result = loop.run_until_complete(_detect())
+    finally:
+        loop.close()
+    return jsonify(result)
+
+
 @app.route('/scrape', methods=['POST'])
 def trigger_scrape():
     global scraping_active
