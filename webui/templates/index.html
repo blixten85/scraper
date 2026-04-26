@@ -19,7 +19,7 @@
     <nav class="navbar navbar-expand-lg sticky-top">
         <div class="container-fluid px-4">
             <a class="navbar-brand d-flex align-items-center gap-2" href="/">
-                <i class="bi bi-spider text-primary"></i> Web Scraper
+                <span class="spider-icon text-primary"></span> Web Scraper
             </a>
             <div class="d-flex align-items-center gap-2 ms-auto">
                 <div class="scraping-indicator me-2">
@@ -334,7 +334,8 @@
 
         updateThemeIcon();
         loadProducts();
-        loadDeals();
+        // Defer deals so products render first
+        setTimeout(loadDeals, 300);
         startStatsPolling(30000);
     </script>
 </body>

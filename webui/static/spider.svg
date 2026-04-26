@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="currentColor" role="img" aria-label="Spider">
+  <!-- Pedicel (waist) -->
+  <ellipse cx="32" cy="31" rx="3.5" ry="4.5"/>
+  <!-- Abdomen -->
+  <ellipse cx="32" cy="43" rx="12" ry="14"/>
+  <!-- Cephalothorax -->
+  <circle cx="32" cy="20" r="9"/>
+  <!-- Eyes -->
+  <circle cx="29" cy="18" r="1.8" fill-opacity="0.25" style="fill:#000"/>
+  <circle cx="35" cy="18" r="1.8" fill-opacity="0.25" style="fill:#000"/>
+  <!-- Left legs (4, with elbow bend) -->
+  <polyline points="23,16 15,10 6,8" stroke="currentColor" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="22,20 13,18 4,21" stroke="currentColor" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="22,25 13,28 5,34" stroke="currentColor" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="23,30 15,36 9,44" stroke="currentColor" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Right legs (mirrored) -->
+  <polyline points="41,16 49,10 58,8" stroke="currentColor" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="42,20 51,18 60,21" stroke="currentColor" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="42,25 51,28 59,34" stroke="currentColor" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="41,30 49,36 55,44" stroke="currentColor" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

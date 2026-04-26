@@ -145,6 +145,7 @@ def init_db():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_products_last_updated ON products(last_updated)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_price_history_product ON price_history(product_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_price_history_time ON price_history(timestamp DESC)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_price_history_product_time ON price_history(product_id, timestamp DESC)")
     
     cur.execute("SELECT COUNT(*) FROM scraper_config")
     if cur.fetchone()[0] == 0:
