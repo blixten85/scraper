@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/blixten85/scraper/compare/v1.4.0...v1.5.0) (2026-04-26)
+
+
+### Features
+
+* add price history, deals, pagination, and auto-detect selectors ([41adac8](https://github.com/blixten85/scraper/commit/41adac8dbe7ad78f07900cc1c48985c9486f2a1a))
+
 ## [1.4.0](https://github.com/blixten85/scraper/compare/v1.3.1...v1.4.0) (2026-04-26)
 
 
