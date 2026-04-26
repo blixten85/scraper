@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/blixten85/scraper/compare/v1.5.0...v1.6.0) (2026-04-26)
+
+
+### Features
+
+* **webui:** replace spider icon with custom SVG; fix page load performance ([937bdb7](https://github.com/blixten85/scraper/commit/937bdb725351af07334322b27843c67a20df6dbc))
+
 ## [1.5.0](https://github.com/blixten85/scraper/compare/v1.4.0...v1.5.0) (2026-04-26)
 
 
