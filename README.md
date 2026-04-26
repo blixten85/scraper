@@ -239,9 +239,9 @@ scraper_config (
 
 Found a bug or want to suggest a feature?
 
-· Bugs: Create an issue
-· Feature requests: Create an issue
-· Discussions: Start a discussion
+- 🐛 Bugs: [Create an issue](https://github.com/blixten85/scraper/issues/new?template=bug_report.md)
+- 💡 Feature requests: [Create an issue](https://github.com/blixten85/scraper/issues/new?template=feature_request.md)
+- 💬 Discussions: [Start a discussion](https://github.com/blixten85/scraper/discussions/new/choose)
 
 ---
 
