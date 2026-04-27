@@ -27,7 +27,15 @@ RUN apt-get update && apt-get install -y \
 RUN mkdir -p /logs && chmod 777 /logs
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    python -c "\
+import pathlib, re; \
+p = pathlib.Path('/usr/local/lib/python3.14/site-packages/playwright_stealth/stealth.py'); \
+c = p.read_text(); \
+c = c.replace('import pkg_resources', 'import importlib.resources'); \
+c = re.sub(r\"pkg_resources\\.resource_filename\\('playwright_stealth',\\s*'js'\\)\", \
+    \"str(importlib.resources.files('playwright_stealth').joinpath('js'))\", c); \
+p.write_text(c)"
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN playwright install chromium
