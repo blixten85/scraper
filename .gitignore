@@ -73,4 +73,5 @@ data/
 secrets/
 products.txt
 *.txt
+!requirements.txt
 *.orig

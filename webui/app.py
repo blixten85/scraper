@@ -12,8 +12,8 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 
-SCRAPER_API = os.getenv('SCRAPER_API', 'http://scraper_api:8000')
-SCRAPER_ENGINE = os.getenv('SCRAPER_ENGINE', 'http://scraper_engine:5001')
+SCRAPER_API = os.getenv('SCRAPER_API', 'http://localhost:8000')
+SCRAPER_ENGINE = os.getenv('SCRAPER_ENGINE', 'http://localhost:5001')
 PATH_RE = re.compile(r"^/[A-Za-z0-9._~!$&'()*+,;=:@/%-]*$")
 
 app = Flask(__name__)

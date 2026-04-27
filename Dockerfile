@@ -2,8 +2,8 @@ FROM python:3.14-slim
 
 WORKDIR /app
 
-# Installera ENDAST nödvändiga systemberoenden
 RUN apt-get update && apt-get install -y \
+    supervisor \
     wget \
     gnupg \
     libnss3 \
@@ -29,13 +29,18 @@ RUN mkdir -p /logs && chmod 777 /logs
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Installera EXAKT rätt Chromium-version
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN playwright install chromium
 RUN playwright install-deps chromium
 
-COPY scraper.py .
+COPY scraper/scraper.py scraper.py
+COPY api/api.py api.py
+COPY alerts/alerts.py alerts.py
+COPY webui/app.py webui/app.py
+COPY webui/templates webui/templates
+COPY webui/static webui/static
+COPY supervisord.conf supervisord.conf
 
-EXPOSE 5001
+EXPOSE 3000 5001 8000
 
-CMD ["python", "scraper.py"]
+CMD ["supervisord", "-c", "/app/supervisord.conf"]

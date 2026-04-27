@@ -23,8 +23,6 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/scraper_password
     volumes:
       - ${DOCKER}/scraper/postgres:/var/lib/postgresql/data
-    networks:
-      - scraper_net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U scraper"]
       interval: 10s
@@ -61,8 +59,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - scraper_net
     logging:
       driver: json-file
       options:
@@ -70,95 +66,39 @@ services:
         max-file: "2"
 
   scraper:
-    image: ghcr.io/blixten85/scraper-engine:latest
-    container_name: scraper_engine
+    image: ghcr.io/blixten85/scraper:latest
+    container_name: scraper
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     environment:
       TZ: ${TZ}
       DB_HOST: postgres
-      DB_NAME: scraper
-      DB_USER: scraper
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
       DB_PASSWORD_FILE: /run/secrets/scraper_password
+      API_KEY_FILE: /run/secrets/api_key
+      DISCORD_WEBHOOK_FILE: /run/secrets/discord_webhook
+      ALLOWED_ORIGINS: "https://scraper.${DOMAIN}"
       CONCURRENT_PAGES: ${CONCURRENT_PAGES}
       HEADLESS: ${HEADLESS}
       SCRAPE_INTERVAL: ${SCRAPE_INTERVAL}
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
-      PROXY_URL: ${PROXY_URL}  # <- LÄGG TILL DENNA
+      PROXY_URL: ${PROXY_URL}
+      CHECK_INTERVAL: ${ALERT_CHECK_INTERVAL}
+      MIN_DROP_PERCENT: ${MIN_DROP_PERCENT}
+      MIN_DROP_AMOUNT: ${MIN_DROP_AMOUNT}
+      COOLDOWN_HOURS: ${COOLDOWN_HOURS}
     volumes:
       - ${DOCKER}/scraper/logs:/logs
       - ${DOCKER}/scraper/playwright-cache:/ms-playwright
     secrets:
       - scraper_password
+      - api_key
+      - discord_webhook
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - scraper_net
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  api:
-    image: ghcr.io/blixten85/scraper-api:latest
-    container_name: scraper_api
-    restart: unless-stopped
-    user: "${PUID}:${PGID}"
-    security_opt:
-      - no-new-privileges:true
-    environment:
-      TZ: ${TZ}
-      DB_HOST: postgres
-      DB_NAME: scraper
-      DB_USER: scraper
-      DB_PASSWORD_FILE: /run/secrets/scraper_password
-      API_KEY_FILE: /run/secrets/api_key
-      ALLOWED_ORIGINS: "https://scraper.${DOMAIN}"
-    secrets:
-      - scraper_password
-      - api_key
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - scraper_net
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  webui:
-    image: ghcr.io/blixten85/scraper-webui:latest
-    container_name: scraper_webui
-    restart: unless-stopped
-    user: "${PUID}:${PGID}"
-    security_opt:
-      - no-new-privileges:true
-    environment:
-      TZ: ${TZ}
-      SCRAPER_API: http://scraper_api:8000
-      SCRAPER_ENGINE: http://scraper_engine:5001
-      API_KEY_FILE: /run/secrets/api_key
-    secrets:
-      - api_key
-    depends_on:
-      - api
-    networks:
-      - scraper_net
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/health')"]
       interval: 30s
@@ -171,46 +111,9 @@ services:
         max-file: "3"
     labels:
       swag: "enable"
-      swag_address: "scraper_webui"
+      swag_address: "scraper"
       swag_port: "3000"
       swag_url: "scraper.${DOMAIN}"
-
-  alerts:
-    image: ghcr.io/blixten85/scraper-alerts:latest
-    container_name: scraper_alerts
-    restart: unless-stopped
-    user: "${PUID}:${PGID}"
-    security_opt:
-      - no-new-privileges:true
-    environment:
-      TZ: ${TZ}
-      DB_HOST: postgres
-      DB_NAME: scraper
-      DB_USER: scraper
-      DB_PASSWORD_FILE: /run/secrets/scraper_password
-      DISCORD_WEBHOOK_FILE: /run/secrets/discord_webhook
-      CHECK_INTERVAL: ${ALERT_CHECK_INTERVAL}
-      MIN_DROP_PERCENT: ${MIN_DROP_PERCENT}
-      MIN_DROP_AMOUNT: ${MIN_DROP_AMOUNT}
-      COOLDOWN_HOURS: ${COOLDOWN_HOURS}
-    secrets:
-      - scraper_password
-      - discord_webhook
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - scraper_net
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-networks:
-  scraper_net:
-    driver: bridge
-    name: scraper_net
 
 secrets:
   scraper_password:
