@@ -14,7 +14,7 @@ from flask_cors import CORS
 
 SCRAPER_API = os.getenv('SCRAPER_API', 'http://scraper_api:8000')
 SCRAPER_ENGINE = os.getenv('SCRAPER_ENGINE', 'http://scraper_engine:5001')
-ENGINE_PATH_RE = re.compile(r"^/[A-Za-z0-9._~!$&'()*+,;=:@/%-]*$")
+PATH_RE = re.compile(r"^/[A-Za-z0-9._~!$&'()*+,;=:@/%-]*$")
 
 app = Flask(__name__)
 CORS(app)
@@ -35,15 +35,17 @@ def get_api_key():
         API_KEY = read_secret("API_KEY")
     return API_KEY
 
+def _validate_path(path):
+    if not isinstance(path, str) or not PATH_RE.fullmatch(path):
+        raise ValueError("Invalid request path")
+
 def engine_request(method, path, **kwargs):
-    if not isinstance(path, str) or not path.startswith('/'):
-        raise ValueError("Invalid engine request path")
-    if '://' in path or not ENGINE_PATH_RE.fullmatch(path):
-        raise ValueError("Unsafe engine request path")
+    _validate_path(path)
     url = f"{SCRAPER_ENGINE}{path}"
     return requests.request(method, url, **kwargs)
 
 def api_request(method, path, **kwargs):
+    _validate_path(path)
     url = f"{SCRAPER_API}{path}"
     headers = kwargs.pop('headers', {})
     headers['X-API-Key'] = get_api_key()
