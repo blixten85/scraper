@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/blixten85/scraper/compare/v1.8.0...v1.9.0) (2026-04-27)
+
+
+### Features
+
+* advanced settings via WebUI, simplify docker-compose ([297c5e6](https://github.com/blixten85/scraper/commit/297c5e63c99f58ff28bdc87ada2fa0f5de6278c6))
+
 ## [1.8.0](https://github.com/blixten85/scraper/compare/v1.7.2...v1.8.0) (2026-04-27)
 
 
