@@ -40,7 +40,9 @@ COPY webui/app.py webui/app.py
 COPY webui/templates webui/templates
 COPY webui/static webui/static
 COPY supervisord.conf supervisord.conf
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 3000 5001 8000
 
-CMD ["supervisord", "-c", "/app/supervisord.conf"]
+ENTRYPOINT ["/entrypoint.sh"]
