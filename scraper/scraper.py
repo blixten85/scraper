@@ -874,7 +874,7 @@ def detect_selectors():
             return null;
         }
 
-        document.querySelectorAll('article, li, div, section').forEach(el => {
+        document.querySelectorAll('article, li, div, section, a[href]').forEach(el => {
             const sel = getSelector(el);
             if (sel) selectorCount[sel] = (selectorCount[sel] || 0) + 1;
         });
@@ -936,8 +936,9 @@ def detect_selectors():
             };
             walkPrice(container);
 
-            // Link: container itself if it's an anchor, else first child anchor
-            const anchor = container.tagName === 'A' ? container : container.querySelector('a[href]');
+            // Link: container itself, first child anchor, or closest ancestor anchor
+            const anchor = container.tagName === 'A' ? container
+                : (container.querySelector('a[href]') || container.closest('a[href]'));
             if (anchor) {
                 const cls = (anchor.className && typeof anchor.className === 'string')
                     ? anchor.className.trim().split(/\\s+/)[0] : '';
@@ -971,10 +972,14 @@ def detect_selectors():
                 browser = await p.chromium.launch(headless=True)
                 page = await browser.new_page()
                 try:
-                    await page.goto(url, timeout=30000)
+                    await page.goto(url, timeout=60000)
                     await page.wait_for_load_state("domcontentloaded")
+                    try:
+                        await page.wait_for_load_state("networkidle", timeout=8000)
+                    except Exception:
+                        pass
                     await accept_cookies(page)
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(3)
                     result = await page.evaluate(detect_js)
                     return {'status': 'success', **result}
                 finally:

@@ -69,7 +69,7 @@ docker compose logs scraper    # → API key
 
 | Container | Port | Description |
 |-----------|------|-------------|
-| `scraper_db` | 5432 (internal) | PostgreSQL database |
+| `postgres` | 5432 (internal) | PostgreSQL database |
 | `scraper` | 3000 | Web UI, API, scraper engine, alerts |
 
 ---
