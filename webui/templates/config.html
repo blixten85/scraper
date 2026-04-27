@@ -80,6 +80,14 @@
                             <label class="form-label">Link selector</label>
                             <input type="text" class="form-control" id="cfgLink" required placeholder="a.product-link">
                         </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="cfgStealth">
+                                <label class="form-check-label" for="cfgStealth">
+                                    Stealth mode <small class="text-muted">(enable for Akamai / Cloudflare protected sites)</small>
+                                </label>
+                            </div>
+                        </div>
                         <div class="col-12 d-flex gap-2 pt-1">
                             <button type="submit" class="btn btn-primary">
                                 <i class="bi bi-check-lg me-1"></i> Save
@@ -249,8 +257,12 @@
                     if (res.link_selector)    document.getElementById('cfgLink').value    = res.link_selector;
                     if (res.site_name && !document.getElementById('cfgName').value.trim())
                         document.getElementById('cfgName').value = res.site_name;
+                    if (res.use_stealth)
+                        document.getElementById('cfgStealth').checked = true;
                     const found = [res.product_selector, res.title_selector, res.price_selector, res.link_selector].filter(Boolean).length;
-                    showToast(`Detected ${found}/4 selectors`, found >= 3 ? 'success' : 'warning');
+                    const botMsg = res.bot_protection && res.bot_protection !== 'none'
+                        ? ` — ${res.bot_protection} detected, stealth enabled` : '';
+                    showToast(`Detected ${found}/4 selectors${botMsg}`, found >= 3 ? 'success' : 'warning');
                 } else {
                     showToast('Detection failed: ' + (res.message || 'Unknown error'), 'danger');
                 }
@@ -271,6 +283,7 @@
                 title_selector: document.getElementById('cfgTitle').value,
                 price_selector: document.getElementById('cfgPrice').value,
                 link_selector: document.getElementById('cfgLink').value,
+                use_stealth: document.getElementById('cfgStealth').checked,
                 enabled: true
             };
             fetch('/api/configs', {
@@ -321,10 +334,13 @@
                             <tr>
                                 <td class="fw-500">${escapeHtml(c.name)}</td>
                                 <td class="date-cell">${escapeHtml(c.base_url)}</td>
-                                <td>${c.enabled
-                                    ? '<span class="status-active"><i class="bi bi-circle-fill" style="font-size:0.5rem"></i> Active</span>'
-                                    : '<span class="status-inactive"><i class="bi bi-circle-fill" style="font-size:0.5rem"></i> Inactive</span>'
-                                }</td>
+                                <td>
+                                    ${c.enabled
+                                        ? '<span class="status-active"><i class="bi bi-circle-fill" style="font-size:0.5rem"></i> Active</span>'
+                                        : '<span class="status-inactive"><i class="bi bi-circle-fill" style="font-size:0.5rem"></i> Inactive</span>'
+                                    }
+                                    ${c.use_stealth ? ' <span class="badge bg-warning text-dark" title="Stealth mode active"><i class="bi bi-shield-shaded"></i></span>' : ''}
+                                </td>
                                 <td class="text-end">
                                     <button class="btn btn-sm btn-outline-danger" onclick="deleteConfig(${c.id})">
                                         <i class="bi bi-trash3"></i>

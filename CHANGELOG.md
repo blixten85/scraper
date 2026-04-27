@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.14.0](https://github.com/blixten85/scraper/compare/v1.13.6...v1.14.0) (2026-04-27)
+
+
+### Features
+
+* add stealth mode and bot protection detection ([#84](https://github.com/blixten85/scraper/issues/84)) ([b53e818](https://github.com/blixten85/scraper/commit/b53e8181a08f3b2ee7cdb2a39768d373619a58ac))
+
+## [1.13.6](https://github.com/blixten85/scraper/compare/v1.13.5...v1.13.6) (2026-04-27)
+
+
+### Bug Fixes
+
+* improve auto-detect reliability and fix gunicorn timeout ([#77](https://github.com/blixten85/scraper/issues/77)) ([ebe2bde](https://github.com/blixten85/scraper/commit/ebe2bde0e1b6d88f71e9a0fa1acce78d19c0a223))
+* improve detect selector fallbacks for title and price ([#79](https://github.com/blixten85/scraper/issues/79)) ([3e3fdc1](https://github.com/blixten85/scraper/commit/3e3fdc168c61216ab72459933abf70f16d613297))
+* resolve py/empty-except CodeQL alerts [#33](https://github.com/blixten85/scraper/issues/33) and [#34](https://github.com/blixten85/scraper/issues/34) ([#82](https://github.com/blixten85/scraper/issues/82)) ([c0048a4](https://github.com/blixten85/scraper/commit/c0048a48d0e9ee9528c4e447b11969c73dc999fd))
+* resolve stale DB connections and detect request timeout ([#78](https://github.com/blixten85/scraper/issues/78)) ([13aa4b6](https://github.com/blixten85/scraper/commit/13aa4b65de53f545eeb26cd21b415d5c32b0cdc8))
+* use index-based row access for psycopg2 tuple cursors ([#75](https://github.com/blixten85/scraper/issues/75)) ([f7fce52](https://github.com/blixten85/scraper/commit/f7fce522ae6c30759cd3bb7337818dcc2e1a8b75))
+
 ## [1.13.5](https://github.com/blixten85/scraper/compare/v1.13.4...v1.13.5) (2026-04-27)
 
 
