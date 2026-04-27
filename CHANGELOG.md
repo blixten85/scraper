@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.3](https://github.com/blixten85/scraper/compare/v1.13.2...v1.13.3) (2026-04-27)
+
+
+### Bug Fixes
+
+* replace Flask dev server with gunicorn for production ([7749324](https://github.com/blixten85/scraper/commit/774932454505b08d6303090306b486d975531d89))
+
 ## [1.13.2](https://github.com/blixten85/scraper/compare/v1.13.1...v1.13.2) (2026-04-27)
 
 
