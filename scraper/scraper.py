@@ -910,24 +910,34 @@ def detect_selectors():
                 }
             }
 
-            // Price: leaf node with price text
+            // Price: find the shallowest element whose full text contains a price
             const walkPrice = (el) => {
                 if (priceSelector) return;
-                if (el.children.length === 0) {
-                    if (PRICE_RE.test(el.textContent)) {
+                if (PRICE_RE.test(el.textContent)) {
+                    // Prefer leaf nodes; if no leaf matches, take this node
+                    if (el.children.length === 0) {
                         const tag = el.tagName.toLowerCase();
                         const cls = (el.className && typeof el.className === 'string')
                             ? el.className.trim().split(/\\s+/)[0] : '';
                         priceSelector = cls ? tag + '.' + cls : tag;
+                        return;
                     }
-                    return;
+                    // Check if any child contains the price; if not, use this element
+                    const childMatch = Array.from(el.children).some(c => PRICE_RE.test(c.textContent));
+                    if (!childMatch) {
+                        const tag = el.tagName.toLowerCase();
+                        const cls = (el.className && typeof el.className === 'string')
+                            ? el.className.trim().split(/\\s+/)[0] : '';
+                        priceSelector = cls ? tag + '.' + cls : tag;
+                        return;
+                    }
+                    Array.from(el.children).forEach(walkPrice);
                 }
-                Array.from(el.children).forEach(walkPrice);
             };
             walkPrice(container);
 
-            // Link: first anchor
-            const anchor = container.querySelector('a[href]');
+            // Link: container itself if it's an anchor, else first child anchor
+            const anchor = container.tagName === 'A' ? container : container.querySelector('a[href]');
             if (anchor) {
                 const cls = (anchor.className && typeof anchor.className === 'string')
                     ? anchor.className.trim().split(/\\s+/)[0] : '';
@@ -996,7 +1006,15 @@ def get_settings():
     result = {}
     for key, meta in SETTINGS_META.items():
         raw = stored.get(key)
-        result[key] = {**meta, 'value': raw if raw is not None else str(meta['default'])}
+        if raw is not None:
+            val = raw
+        elif meta['default'] is True:
+            val = 'true'
+        elif meta['default'] is False:
+            val = 'false'
+        else:
+            val = str(meta['default'])
+        result[key] = {**meta, 'value': val}
     return jsonify(result)
 
 
