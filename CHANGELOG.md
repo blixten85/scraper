@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.2](https://github.com/blixten85/scraper/compare/v1.13.1...v1.13.2) (2026-04-27)
+
+
+### Bug Fixes
+
+* alerts.py gracefully handles missing settings table on startup ([69fca3d](https://github.com/blixten85/scraper/commit/69fca3d96165c1b95eef9baeaef64d145279c02d))
+
 ## [1.13.1](https://github.com/blixten85/scraper/compare/v1.13.0...v1.13.1) (2026-04-27)
 
 
