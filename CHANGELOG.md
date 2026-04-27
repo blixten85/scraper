@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.15.1](https://github.com/blixten85/scraper/compare/v1.15.0...v1.15.1) (2026-04-27)
+
+
+### Bug Fixes
+
+* add setuptools for playwright-stealth pkg_resources on Python 3.14 ([#89](https://github.com/blixten85/scraper/issues/89)) ([edc180b](https://github.com/blixten85/scraper/commit/edc180bdf9fb5f6181610ed95f30c42dafe125ae))
+* ensure Claude PRs auto-rebase and re-trigger checks ([#90](https://github.com/blixten85/scraper/issues/90)) ([4982315](https://github.com/blixten85/scraper/commit/4982315ce3aeb97477f4f951422b0db64086027a))
+
 ## [1.15.0](https://github.com/blixten85/scraper/compare/v1.14.0...v1.15.0) (2026-04-27)
 
 
