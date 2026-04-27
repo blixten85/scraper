@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.4](https://github.com/blixten85/scraper/compare/v1.15.3...v1.15.4) (2026-04-27)
+
+
+### Bug Fixes
+
+* patch playwright-stealth to use importlib.resources, drop setuptools&lt;80 pin ([#96](https://github.com/blixten85/scraper/issues/96)) ([12b0ee4](https://github.com/blixten85/scraper/commit/12b0ee408378612f404d3cc0b06025591100c5cb))
+
 ## [1.15.3](https://github.com/blixten85/scraper/compare/v1.15.2...v1.15.3) (2026-04-27)
 
 
