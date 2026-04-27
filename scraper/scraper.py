@@ -259,6 +259,7 @@ def init_db():
     """)
 
     cur.execute("ALTER TABLE scraper_config ADD COLUMN IF NOT EXISTS use_stealth INTEGER DEFAULT 0")
+    cur.execute("ALTER TABLE scraper_config ADD COLUMN IF NOT EXISTS proxy_url TEXT DEFAULT ''")
 
     cur.execute("CREATE INDEX IF NOT EXISTS idx_products_url ON products(url)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_products_last_updated ON products(last_updated)")
@@ -640,11 +641,14 @@ async def run_scraper():
     headless = get_setting('headless')
     proxy_url = get_setting('proxy_url')
 
-    proxy = None
-    if proxy_url:
-        proxy = {"server": proxy_url}
-        proxy_display = str(proxy_url)
-        logger.info(f"Using proxy: {proxy_display.split('@')[-1] if '@' in proxy_display else proxy_display}")
+    global_proxy_url = proxy_url
+
+    def _make_proxy(url):
+        if not url:
+            return None
+        display = url.split('@')[-1] if '@' in url else url
+        logger.info(f"Using proxy: {display}")
+        return {"server": url}
 
     browser = None
     try:
@@ -660,25 +664,29 @@ async def run_scraper():
                     '--disable-web-security',
                     '--disable-zygote',
                 ],
-                proxy=proxy
-            )
-            context = await browser.new_context(
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                viewport={'width': 1920, 'height': 1080},
-                locale='sv-SE',
-                timezone_id='Europe/Stockholm',
-                extra_http_headers={
-                    'Accept-Language': 'sv-SE,sv;q=0.9,en-US;q=0.8,en;q=0.7',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'DNT': '1',
-                }
             )
             sem = asyncio.Semaphore(concurrent_pages)
-            
+
             async def worker(cfg):
+                site_proxy = _make_proxy(cfg.get('proxy_url') or global_proxy_url)
+                context = await browser.new_context(
+                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    viewport={'width': 1920, 'height': 1080},
+                    locale='sv-SE',
+                    timezone_id='Europe/Stockholm',
+                    extra_http_headers={
+                        'Accept-Language': 'sv-SE,sv;q=0.9,en-US;q=0.8,en;q=0.7',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                        'DNT': '1',
+                    },
+                    proxy=site_proxy,
+                )
                 async with sem:
-                    await scrape_site(context, cfg)
-            
+                    try:
+                        await scrape_site(context, cfg)
+                    finally:
+                        await context.close()
+
             tasks = [worker(cfg) for cfg in configs]
             await asyncio.gather(*tasks)
     finally:
@@ -736,8 +744,8 @@ def create_config():
         cur.execute("""
             INSERT INTO scraper_config
             (name, base_url, product_selector, title_selector, price_selector, link_selector,
-             pagination_type, pagination_selector, max_pages, min_price, max_price, categories, use_stealth)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             pagination_type, pagination_selector, max_pages, min_price, max_price, categories, use_stealth, proxy_url)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """, (
             data['name'], data['base_url'],
@@ -749,7 +757,8 @@ def create_config():
             data.get('min_price', 0),
             data.get('max_price', 999999),
             json.dumps(data.get('categories', [])),
-            1 if data.get('use_stealth') else 0
+            1 if data.get('use_stealth') else 0,
+            data.get('proxy_url', '')
         ))
         config_id = cur.fetchone()[0]
         conn.commit()
@@ -777,7 +786,7 @@ def update_config(config_id):
                 price_selector = %s, link_selector = %s, pagination_type = %s,
                 pagination_selector = %s, max_pages = %s, enabled = %s,
                 min_price = %s, max_price = %s, categories = %s,
-                use_stealth = %s, updated_at = NOW()
+                use_stealth = %s, proxy_url = %s, updated_at = NOW()
             WHERE id = %s
         """, (
             data['name'], data['base_url'],
@@ -791,6 +800,7 @@ def update_config(config_id):
             data.get('max_price', 999999),
             json.dumps(data.get('categories', [])),
             1 if data.get('use_stealth') else 0,
+            data.get('proxy_url', ''),
             config_id
         ))
         conn.commit()
@@ -808,7 +818,8 @@ def delete_config(config_id):
     conn = get_db()
     cur = conn.cursor()
     try:
-        cur.execute("UPDATE scraper_config SET enabled = 0 WHERE id = %s", (config_id,))
+        cur.execute("DELETE FROM products WHERE site_config_id = %s", (config_id,))
+        cur.execute("DELETE FROM scraper_config WHERE id = %s", (config_id,))
         conn.commit()
         return jsonify({'status': 'success'})
     except Exception as e:
