@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.4](https://github.com/blixten85/scraper/compare/v1.13.3...v1.13.4) (2026-04-27)
+
+
+### Bug Fixes
+
+* address CodeQL security findings in scraper.py ([8ffc3a2](https://github.com/blixten85/scraper/commit/8ffc3a2eb2dfacd809504b567c983fc4cf196a0e))
+
 ## [1.13.3](https://github.com/blixten85/scraper/compare/v1.13.2...v1.13.3) (2026-04-27)
 
 
