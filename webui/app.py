@@ -8,7 +8,7 @@ import os
 import logging
 import re
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 
@@ -61,7 +61,7 @@ def config_page():
 
 @app.route('/health')
 def health():
-    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
+    return jsonify({'status': 'healthy', 'timestamp': datetime.now(timezone.utc).isoformat()})
 
 @app.route('/api/configs', methods=['GET'])
 def get_configs():

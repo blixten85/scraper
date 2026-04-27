@@ -941,7 +941,7 @@ def detect_selectors():
         if (ogSiteName && ogSiteName.content) {
             siteName = ogSiteName.content.trim();
         } else {
-            siteName = document.title.split(/[|\-–—]/)[0].trim();
+            siteName = document.title.split(/[-|–—]/)[0].trim();
         }
 
         return {
