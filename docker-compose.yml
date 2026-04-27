@@ -3,7 +3,7 @@ version: "3.9"
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: scraper_db
+    container_name: postgres
     restart: unless-stopped
     user: root
     entrypoint: ["/bin/sh", "-c"]
