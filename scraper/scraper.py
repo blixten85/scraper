@@ -16,6 +16,7 @@ import random
 import signal
 from urllib.parse import urljoin
 from playwright.async_api import async_playwright
+from playwright_stealth import stealth_async
 from flask import Flask, request, jsonify
 import threading
 import psycopg2
@@ -257,6 +258,8 @@ def init_db():
     )
     """)
 
+    cur.execute("ALTER TABLE scraper_config ADD COLUMN IF NOT EXISTS use_stealth INTEGER DEFAULT 0")
+
     cur.execute("CREATE INDEX IF NOT EXISTS idx_products_url ON products(url)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_products_last_updated ON products(last_updated)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_price_history_product ON price_history(product_id)")
@@ -377,12 +380,14 @@ async def extract_product(page, element, config):
         return None
 
 
-async def scrape_page_with_retry(context, url, max_retries=3):
+async def scrape_page_with_retry(context, url, max_retries=3, use_stealth=False):
     """Scrape page with exponential backoff - always closes page on failure"""
     for attempt in range(max_retries):
         page = None
         try:
             page = await context.new_page()
+            if use_stealth:
+                await stealth_async(page)
             await page.goto(url, timeout=60000, wait_until="domcontentloaded")
             page.set_default_timeout(30000)
             await page.wait_for_timeout(random.randint(2000, 5000))
@@ -446,7 +451,7 @@ async def scrape_site(context, config):
             visited.add(url)
 
             logger.info(f"  Category: {url.split('/')[-1]}")
-            page = await scrape_page_with_retry(context, url)
+            page = await scrape_page_with_retry(context, url, use_stealth=config.get('use_stealth', 0))
             if not page:
                 continue
 
@@ -505,7 +510,7 @@ async def scrape_site(context, config):
 
             while url and page_num <= max_pages and not shutdown_event.is_set():
                 logger.info(f"  Page {page_num}/{max_pages}: {url}")
-                page = await scrape_page_with_retry(context, url)
+                page = await scrape_page_with_retry(context, url, use_stealth=config.get('use_stealth', 0))
                 if not page:
                     break
 
@@ -729,10 +734,10 @@ def create_config():
     cur = conn.cursor()
     try:
         cur.execute("""
-            INSERT INTO scraper_config 
+            INSERT INTO scraper_config
             (name, base_url, product_selector, title_selector, price_selector, link_selector,
-             pagination_type, pagination_selector, max_pages, min_price, max_price, categories)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             pagination_type, pagination_selector, max_pages, min_price, max_price, categories, use_stealth)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """, (
             data['name'], data['base_url'],
@@ -743,7 +748,8 @@ def create_config():
             data.get('max_pages', 10),
             data.get('min_price', 0),
             data.get('max_price', 999999),
-            json.dumps(data.get('categories', []))
+            json.dumps(data.get('categories', [])),
+            1 if data.get('use_stealth') else 0
         ))
         config_id = cur.fetchone()[0]
         conn.commit()
@@ -770,7 +776,8 @@ def update_config(config_id):
                 name = %s, base_url = %s, product_selector = %s, title_selector = %s,
                 price_selector = %s, link_selector = %s, pagination_type = %s,
                 pagination_selector = %s, max_pages = %s, enabled = %s,
-                min_price = %s, max_price = %s, categories = %s, updated_at = NOW()
+                min_price = %s, max_price = %s, categories = %s,
+                use_stealth = %s, updated_at = NOW()
             WHERE id = %s
         """, (
             data['name'], data['base_url'],
@@ -783,6 +790,7 @@ def update_config(config_id):
             data.get('min_price', 0),
             data.get('max_price', 999999),
             json.dumps(data.get('categories', [])),
+            1 if data.get('use_stealth') else 0,
             config_id
         ))
         conn.commit()
@@ -987,15 +995,32 @@ def detect_selectors():
         };
     }"""
 
+    bot_detect_js = """() => {
+        if (window._abck !== undefined || document.cookie.includes('_abck') ||
+            document.querySelector('script[src*="akam"]'))
+            return 'akamai';
+        if (document.querySelector('#cf-challenge-running') ||
+            document.querySelector('script[src*="challenges.cloudflare.com"]') ||
+            document.cookie.includes('cf_clearance'))
+            return 'cloudflare';
+        if (document.querySelector('script[src*="perimeterx"]') ||
+            document.querySelector('div[id*="px-captcha"]'))
+            return 'perimeterx';
+        if (document.querySelector('script[src*="distil"]') ||
+            document.querySelector('body[class*="distil"]'))
+            return 'distil';
+        return 'none';
+    }"""
+
     async def _detect():
         browser = None
         try:
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)
                 page = await browser.new_page()
+                await stealth_async(page)
                 try:
-                    await page.goto(url, timeout=60000)
-                    await page.wait_for_load_state("domcontentloaded")
+                    await page.goto(url, timeout=60000, wait_until="domcontentloaded")
                     try:
                         await page.wait_for_load_state("networkidle", timeout=8000)
                     except Exception as e:
@@ -1003,7 +1028,13 @@ def detect_selectors():
                     await accept_cookies(page)
                     await asyncio.sleep(3)
                     result = await page.evaluate(detect_js)
-                    return {'status': 'success', **result}
+                    bot_protection = await page.evaluate(bot_detect_js)
+                    return {
+                        'status': 'success',
+                        **result,
+                        'bot_protection': bot_protection,
+                        'use_stealth': bot_protection != 'none',
+                    }
                 finally:
                     await page.close()
         except Exception as e:
