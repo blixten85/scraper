@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.0](https://github.com/blixten85/scraper/compare/v1.12.0...v1.13.0) (2026-04-27)
+
+
+### Features
+
+* → minor, fix: → patch, chore:/refactor:/docs: → no bump. ([73113c3](https://github.com/blixten85/scraper/commit/73113c312bcd5958dfef93c9fa7f1e6e01f84b27))
+
 ## [1.12.0](https://github.com/blixten85/scraper/compare/v1.11.0...v1.12.0) (2026-04-27)
 
 
