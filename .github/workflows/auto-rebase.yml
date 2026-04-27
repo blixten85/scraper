@@ -21,7 +21,7 @@ jobs:
 
       - name: Find open PRs with auto-rebase label (excluding Dependabot)
         id: find-prs
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const { data: prs } = await github.rest.pulls.list({
@@ -38,7 +38,7 @@ jobs:
             return updatable;
 
       - name: Update PR branches
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const prNumbers = ${{ steps.find-prs.outputs.result }};
