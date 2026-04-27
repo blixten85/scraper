@@ -1,41 +1,33 @@
-# 🕷️ Web Scraper Platform
+# Web Scraper Platform
 
 [![Build](https://github.com/blixten85/scraper/actions/workflows/build.yml/badge.svg)](https://github.com/blixten85/scraper/actions/workflows/build.yml)
 [![Release](https://img.shields.io/github/v/release/blixten85/scraper)](https://github.com/blixten85/scraper/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Dependabot](https://img.shields.io/badge/Dependabot-active-brightgreen)](https://github.com/blixten85/scraper/network/updates)
-[![Auto-merge](https://img.shields.io/badge/Auto--merge-enabled-blue)](https://github.com/blixten85/scraper/blob/main/.github/workflows/auto-merge.yml)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/blixten85/scraper/blob/main/CONTRIBUTING.md)
-<br>
-[![Python](https://img.shields.io/badge/Python-3.11-blue)](https://www.python.org/)
-[![Flask](https://img.shields.io/badge/Flask-3.0.0-lightgrey)](https://flask.palletsprojects.com/)
-[![Playwright](https://img.shields.io/badge/Playwright-1.40.0-2EAD33)](https://playwright.dev/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-316192)](https://www.postgresql.org/)
-[![Docker](https://img.shields.io/badge/Docker-24.0-2496ED)](https://www.docker.com/)
-<br>
-[![Stars](https://img.shields.io/github/stars/blixten85/scraper?style=social)](https://github.com/blixten85/scraper)
-[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-%23db61a2.svg?logo=github)](https://github.com/sponsors/blixten85)
+[![Python](https://img.shields.io/badge/Python-3.14-blue)](https://www.python.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-316192)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Docker-compose-2496ED)](https://www.docker.com/)
 
 **Production-ready web scraping platform with PostgreSQL, WebUI, REST API, and price monitoring.**
 
 ---
 
-## ✨ Features
+## Features
 
 | Feature | Description |
 |---------|-------------|
-| 🔍 **Multi-site scraping** | Scrape any e-commerce site with CSS selectors |
-| 🎨 **WebUI** | Configure and monitor via web interface |
-| 📡 **REST API** | Programmatic data access with API key authentication |
-| 🔔 **Price alerts** | Discord notifications for price drops |
-| 🐘 **PostgreSQL** | Production-grade database |
-| 🐳 **Docker** | Run everything with a single docker compose up |
-| 🔒 **Security** | API authentication, secrets, no-new-privileges |
-| 🌐 **Proxy support** | Optional HTTP/HTTPS proxy for anti-bot protection |
+| **Multi-site scraping** | Scrape any e-commerce site with CSS selectors |
+| **Auto-detect** | Detect selectors automatically from a URL |
+| **Stealth mode** | Bypass Akamai, Cloudflare, and PerimeterX bot protection |
+| **WebUI** | Configure and monitor via web interface |
+| **REST API** | Programmatic data access with API key authentication |
+| **Price alerts** | Discord notifications for price drops |
+| **PostgreSQL** | Production-grade database with connection pooling |
+| **Docker** | Run everything with a single `docker compose up` |
+| **Proxy support** | Optional SOCKS5/HTTP proxy |
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # 1. Create a minimal .env file
@@ -65,7 +57,7 @@ docker compose logs scraper    # → API key
 
 ---
 
-## 📦 Services (Docker)
+## Services (Docker)
 
 | Container | Port | Description |
 |-----------|------|-------------|
@@ -74,7 +66,7 @@ docker compose logs scraper    # → API key
 
 ---
 
-## 🔐 Credentials
+## Credentials
 
 All credentials are **auto-generated on first startup** and stored in `DOCKER/scraper/credentials/`:
 
@@ -86,16 +78,16 @@ All credentials are **auto-generated on first startup** and stored in `DOCKER/sc
 
 Credentials can be changed at any time under **Configuration → Advanced settings → Database credentials** in the WebUI.
 
-To retrieve the API key after first start:
 ```bash
+# Retrieve the API key after first start
 cat /path/to/docker/data/scraper/credentials/api_key
 ```
 
 ---
 
-## 📡 API Examples
+## API Examples
 
-*Note: API requires X-API-Key header for all endpoints except /health and /docs.*
+*All endpoints except `/health` and `/docs` require an `X-API-Key` header.*
 
 ```bash
 # Get all products
@@ -115,7 +107,7 @@ API Documentation: http://localhost:8000/docs
 
 ---
 
-## 🔧 Configuration (.env)
+## Configuration (.env)
 
 Only three variables are required:
 
@@ -125,13 +117,13 @@ DOMAIN=example.com             # used for reverse proxy labels
 TZ=Europe/Stockholm            # timezone
 ```
 
-All other settings (scrape interval, alert thresholds, proxy, etc.) are configured in the WebUI under **Advanced settings** and stored in the database.
+All other settings (scrape interval, alert thresholds, proxy, stealth, etc.) are configured in the WebUI under **Advanced settings** and stored in the database.
 
 ---
 
-## 💾 Optional: Scheduled Database Backups
+## Optional: Scheduled Database Backups
 
-Add this service to your `docker-compose.yml` if you want automatic daily `pg_dump` backups (kept for 7 days):
+Add this service to your `docker-compose.yml` for automatic daily `pg_dump` backups (kept 7 days):
 
 ```yaml
   pgdump:
@@ -165,33 +157,30 @@ Add this service to your `docker-compose.yml` if you want automatic daily `pg_du
 
 ---
 
-## 🛠️ Troubleshooting
+## Troubleshooting
 
 ### Postgres won't start
 
 ```bash
-# Check permissions
 sudo chown -R 999:999 ${DOCKER}/scraper/postgres
 ```
 
 ### API returns 401 Unauthorized
 
 ```bash
-# Verify you're sending the correct header
 curl -H "X-API-Key: ${API_KEY}" http://localhost:8000/products
 ```
 
 ### No products are scraped
 
 ```bash
-# Test selectors via WebUI (Test button)
-# Or check the logs:
-docker logs scraper_engine --tail 50
+# Test selectors via WebUI (Detect button)
+docker compose logs scraper --tail 50
 ```
 
 ---
 
-## 📁 Database Schema
+## Database Schema
 
 ```sql
 products (
@@ -220,56 +209,15 @@ scraper_config (
   price_selector TEXT,
   link_selector TEXT,
   enabled INTEGER DEFAULT 1,
-  ...
+  use_stealth INTEGER DEFAULT 0,
+  max_pages INTEGER DEFAULT 10,
+  min_price INTEGER DEFAULT 0,
+  max_price INTEGER DEFAULT 999999
 )
 ```
 
 ---
 
-## 🐛 Bugs and Feature Requests
-
-Found a bug or want to suggest a feature?
-
-- 🐛 Bugs: [Create an issue](https://github.com/blixten85/scraper/issues/new?template=bug_report.md)
-- 💡 Feature requests: [Create an issue](https://github.com/blixten85/scraper/issues/new?template=feature_request.md)
-- 💬 Discussions: [Start a discussion](https://github.com/blixten85/scraper/discussions/new/choose)
-
----
-
-## 🤝 Contributing
-
-Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
-
-1. Fork the repo
-2. Create a feature branch (git checkout -b feature/AmazingFeature)
-3. Commit your changes (git commit -m 'Add some AmazingFeature')
-4. Push to the branch (git push origin feature/AmazingFeature)
-5. Open a Pull Request
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
-
----
-
-## 📊 Project Status
-
-| | |
-|--|--|
-| **Version** | [![Version](https://img.shields.io/github/v/tag/blixten85/scraper?label=version)](https://github.com/blixten85/scraper/tags) |
-| **Status** | ✅ Production Ready |
-| **Last Updated** | [![Last Commit](https://img.shields.io/github/last-commit/blixten85/scraper)](https://github.com/blixten85/scraper/commits) |
-
----
-
-## ⭐ Support the Project
-
-If you like this project, give it a ⭐ on GitHub!
-
----
-
-## 📝 License
+## License
 
 MIT - see [LICENSE](LICENSE)
-
----
-
-Created by blixten85 🚀
