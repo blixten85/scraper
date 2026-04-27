@@ -894,7 +894,7 @@ def detect_selectors():
             productSelector = sel;
             const container = withPrice[0];
 
-            // Title: heading first, then class-based
+            // Title: heading first, then class-based, then first leaf with substantial non-price text
             const heading = container.querySelector('h1, h2, h3, h4');
             if (heading) {
                 const tag = heading.tagName.toLowerCase();
@@ -902,11 +902,22 @@ def detect_selectors():
                     ? heading.className.trim().split(/\\s+/)[0] : '';
                 titleSelector = cls ? tag + '.' + cls : tag;
             } else {
-                const titleEl = container.querySelector('[class*="title"], [class*="name"]');
+                const titleEl = container.querySelector('[class*="title"], [class*="name"], [class*="label"], [class*="heading"]');
                 if (titleEl) {
                     const tag = titleEl.tagName.toLowerCase();
                     const cls = (titleEl.className || '').trim().split(/\\s+/)[0];
                     titleSelector = cls ? tag + '.' + cls : tag;
+                } else {
+                    for (const el of container.querySelectorAll('*')) {
+                        const text = el.textContent.trim();
+                        if (text.length > 10 && !PRICE_RE.test(text) && el.children.length === 0) {
+                            const tag = el.tagName.toLowerCase();
+                            const cls = (el.className && typeof el.className === 'string')
+                                ? el.className.trim().split(/\\s+/)[0] : '';
+                            titleSelector = cls ? tag + '.' + cls : tag;
+                            break;
+                        }
+                    }
                 }
             }
 
@@ -935,6 +946,17 @@ def detect_selectors():
                 }
             };
             walkPrice(container);
+
+            // Price fallback: if walkPrice found nothing, look for a price-class element
+            if (!priceSelector) {
+                const priceEl = container.querySelector('[class*="price"], [class*="pris"], [class*="cost"], [class*="amount"]');
+                if (priceEl) {
+                    const tag = priceEl.tagName.toLowerCase();
+                    const cls = (priceEl.className && typeof priceEl.className === 'string')
+                        ? priceEl.className.trim().split(/\\s+/)[0] : '';
+                    priceSelector = cls ? tag + '.' + cls : tag;
+                }
+            }
 
             // Link: container itself, first child anchor, or closest ancestor anchor
             const anchor = container.tagName === 'A' ? container
