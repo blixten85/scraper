@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.15.0](https://github.com/blixten85/scraper/compare/v1.14.0...v1.15.0) (2026-04-27)
+
+
+### Features
+
+* expose postgres port 5432 on localhost for MCP access ([#87](https://github.com/blixten85/scraper/issues/87)) ([8a508cf](https://github.com/blixten85/scraper/commit/8a508cfe1c9f78416aa1cd75f3f60e37e0f63fd1))
+
+
+### Bug Fixes
+
+* use domcontentloaded in detect page.goto to avoid load timeout ([#81](https://github.com/blixten85/scraper/issues/81)) ([3084f12](https://github.com/blixten85/scraper/commit/3084f1206e07625472b0349b686a656130d25760))
+
 ## [1.14.0](https://github.com/blixten85/scraper/compare/v1.13.6...v1.14.0) (2026-04-27)
 
 
