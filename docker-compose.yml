@@ -7,6 +7,10 @@ services:
     restart: unless-stopped
     user: root
     entrypoint: ["/bin/sh", "-c"]
+    # Runs as root so it can fix volume permissions before dropping to the
+    # postgres user (uid 70). Docker creates mounted volumes as root:root,
+    # which postgres refuses to use. The chown runs on every startup.
+    # To change this behaviour, replace the command block below.
     command:
       - |
         chown -R 70:70 /var/lib/postgresql/data
