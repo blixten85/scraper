@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/blixten85/scraper/compare/v1.9.0...v1.10.0) (2026-04-27)
+
+
+### Features
+
+* auto-generate credentials, remove postgres-init and secrets ([6c77742](https://github.com/blixten85/scraper/commit/6c77742737aff1d78b26ec6275e3b2ac7ae8a32a))
+
 ## [1.9.0](https://github.com/blixten85/scraper/compare/v1.8.0...v1.9.0) (2026-04-27)
 
 
