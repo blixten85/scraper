@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.1](https://github.com/blixten85/scraper/compare/v1.13.0...v1.13.1) (2026-04-27)
+
+
+### Bug Fixes
+
+* invalid escape sequence in regex and utcnow deprecation ([43b764b](https://github.com/blixten85/scraper/commit/43b764b27dda06254a1c5f2178a9d2fbbd208cd8))
+
 ## [1.13.0](https://github.com/blixten85/scraper/compare/v1.12.0...v1.13.0) (2026-04-27)
 
 
