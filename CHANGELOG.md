@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.2](https://github.com/blixten85/scraper/compare/v1.15.1...v1.15.2) (2026-04-27)
+
+
+### Bug Fixes
+
+* pin setuptools&lt;80 to restore pkg_resources for playwright-stealth ([#92](https://github.com/blixten85/scraper/issues/92)) ([52fbbb6](https://github.com/blixten85/scraper/commit/52fbbb67b99b1ed69b52b96dc21467fdb7e12e0a))
+
 ## [1.15.1](https://github.com/blixten85/scraper/compare/v1.15.0...v1.15.1) (2026-04-27)
 
 
