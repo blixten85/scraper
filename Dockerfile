@@ -35,6 +35,8 @@ c = p.read_text(); \
 c = c.replace('import pkg_resources', 'import importlib.resources'); \
 c = re.sub(r\"pkg_resources\\.resource_filename\\('playwright_stealth',\\s*'js'\\)\", \
     \"str(importlib.resources.files('playwright_stealth').joinpath('js'))\", c); \
+c = re.sub(r\"pkg_resources\\.resource_string\\('playwright_stealth',\\s*f'js/\\{name\\}'\\)\\.decode\\(\\)\", \
+    \"importlib.resources.files('playwright_stealth').joinpath(f'js/{name}').read_text()\", c); \
 p.write_text(c)"
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
