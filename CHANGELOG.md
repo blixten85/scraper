@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/blixten85/scraper/compare/v1.7.2...v1.8.0) (2026-04-27)
+
+
+### Features
+
+* consolidate app services into single image ([cc91614](https://github.com/blixten85/scraper/commit/cc9161400d8d796f6e732096c40d6998b315f6e7))
+
 ## [1.7.2](https://github.com/blixten85/scraper/compare/v1.7.1...v1.7.2) (2026-04-27)
 
 
