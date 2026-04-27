@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.0](https://github.com/blixten85/scraper/compare/v1.13.6...v1.14.0) (2026-04-27)
+
+
+### Features
+
+* add stealth mode and bot protection detection ([#84](https://github.com/blixten85/scraper/issues/84)) ([b53e818](https://github.com/blixten85/scraper/commit/b53e8181a08f3b2ee7cdb2a39768d373619a58ac))
+
 ## [1.13.6](https://github.com/blixten85/scraper/compare/v1.13.5...v1.13.6) (2026-04-27)
 
 
