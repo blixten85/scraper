@@ -168,7 +168,7 @@ def get_setting(key):
         cur = conn.cursor()
         cur.execute("SELECT value FROM settings WHERE key = %s", (key,))
         row = cur.fetchone()
-        raw = row['value'] if row else None
+        raw = row[0] if row else None
     finally:
         return_db(conn)
     if raw is None:
@@ -1000,7 +1000,7 @@ def get_settings():
     try:
         cur = conn.cursor()
         cur.execute("SELECT key, value FROM settings")
-        stored = {row['key']: row['value'] for row in cur.fetchall()}
+        stored = {row[0]: row[1] for row in cur.fetchall()}
     finally:
         return_db(conn)
     result = {}
