@@ -1265,5 +1265,6 @@ if __name__ == "__main__":
     init_db()
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
-    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5001, debug=False), daemon=True).start()
+    from waitress import serve
+    threading.Thread(target=lambda: serve(app, host='0.0.0.0', port=5001), daemon=True).start()
     asyncio.run(scraper_loop())
