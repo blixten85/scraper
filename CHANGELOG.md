@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.2](https://github.com/blixten85/scraper/compare/v1.7.1...v1.7.2) (2026-04-27)
+
+
+### Bug Fixes
+
+* auto-detect name/URL normalization in scraper config UI ([7af5f4e](https://github.com/blixten85/scraper/commit/7af5f4ef7fe1cf268bb7062af36d89b793d10361))
+
 ## [1.7.1](https://github.com/blixten85/scraper/compare/v1.7.0...v1.7.1) (2026-04-27)
 
 
