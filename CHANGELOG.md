@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.5](https://github.com/blixten85/scraper/compare/v1.13.4...v1.13.5) (2026-04-27)
+
+
+### Bug Fixes
+
+* improve auto-detect selector logic and move advanced settings ([#71](https://github.com/blixten85/scraper/issues/71)) ([cac96ef](https://github.com/blixten85/scraper/commit/cac96ef43013294c08667a94ca1090095460a00a))
+
 ## [1.13.4](https://github.com/blixten85/scraper/compare/v1.13.3...v1.13.4) (2026-04-27)
 
 
