@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.16.0](https://github.com/blixten85/scraper/compare/v1.15.4...v1.16.0) (2026-04-27)
+
+
+### Features
+
+* hard delete for configs and per-site proxy support ([#99](https://github.com/blixten85/scraper/issues/99)) ([ddff73a](https://github.com/blixten85/scraper/commit/ddff73a4ba3176ce4bba7af06c7caf561fef9f9f))
+
+
+### Bug Fixes
+
+* complete playwright-stealth pkg_resources patch (add resource_string) ([#98](https://github.com/blixten85/scraper/issues/98)) ([ae6af87](https://github.com/blixten85/scraper/commit/ae6af87870d4ac1bd18b9773242abe5f2a53bbb5))
+
 ## [1.15.4](https://github.com/blixten85/scraper/compare/v1.15.3...v1.15.4) (2026-04-27)
 
 
