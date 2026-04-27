@@ -54,8 +54,8 @@ def get_db():
     except Exception:
         try:
             db_pool.putconn(conn, close=True)
-        except Exception:
-            pass
+        except Exception as cleanup_err:
+            logger.debug("Failed to discard stale connection: %s", cleanup_err)
         conn = db_pool.getconn()
     return conn
 

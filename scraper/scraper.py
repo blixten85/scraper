@@ -998,8 +998,8 @@ def detect_selectors():
                     await page.wait_for_load_state("domcontentloaded")
                     try:
                         await page.wait_for_load_state("networkidle", timeout=8000)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("networkidle timeout during detect, continuing: %s", e)
                     await accept_cookies(page)
                     await asyncio.sleep(3)
                     result = await page.evaluate(detect_js)
