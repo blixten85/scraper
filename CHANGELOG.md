@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.1](https://github.com/blixten85/scraper/compare/v1.18.0...v1.18.1) (2026-04-28)
+
+
+### Bug Fixes
+
+* simplify template base URLs to site root, warn on komplett ([#105](https://github.com/blixten85/scraper/issues/105)) ([4ec2f98](https://github.com/blixten85/scraper/commit/4ec2f98e4196a7887cd0f5441932d174092d0d4d))
+
 ## [1.18.0](https://github.com/blixten85/scraper/compare/v1.17.0...v1.18.0) (2026-04-28)
 
 
