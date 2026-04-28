@@ -191,7 +191,7 @@
         const templates = {
             inet: {
                 name: "Inet.se",
-                base_url: "https://www.inet.se/kategori/datorkomponenter",
+                base_url: "https://www.inet.se/kategori/",
                 product_selector: "a[href*='/produkt/']",
                 title_selector: "",
                 price_selector: "text=/\\d[\\d\\s]*\\s*kr/",
@@ -202,17 +202,18 @@
             },
             komplett: {
                 name: "Komplett.se",
-                base_url: "https://www.komplett.se/category/datorkomponenter",
+                base_url: "https://www.komplett.se/",
                 product_selector: "div.product-list-item",
                 title_selector: "h2.product-name",
                 price_selector: "span.product-price-now",
                 link_selector: "a.product-link",
                 subcategory: true,
-                pagination_selector: "a[href*='/category/']"
+                pagination_selector: "a[href*='/category/']",
+                note: "Kräver proxy — blockeras av Akamai utan"
             },
             webhallen: {
                 name: "Webhallen.com",
-                base_url: "https://www.webhallen.com/se/category/datorkomponenter",
+                base_url: "https://www.webhallen.com/se/",
                 product_selector: "div.product-item",
                 title_selector: "h2.product-title",
                 price_selector: "span.price",
@@ -264,6 +265,7 @@
             document.getElementById('cfgSubcategory').checked = !!t.subcategory;
             document.getElementById('cfgPaginationSelector').value = t.pagination_selector || '';
             togglePaginationSelector();
+            if (t.note) showToast(t.note, 'warning');
             document.getElementById('addForm').style.display = 'block';
             document.getElementById('addForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
