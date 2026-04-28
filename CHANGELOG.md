@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.0](https://github.com/blixten85/scraper/compare/v1.16.0...v1.17.0) (2026-04-28)
+
+
+### Features
+
+* multi-URL support per scraper config ([#101](https://github.com/blixten85/scraper/issues/101)) ([4c91f4f](https://github.com/blixten85/scraper/commit/4c91f4f3a2006d92933f7d87044690956b6461dc))
+
 ## [1.16.0](https://github.com/blixten85/scraper/compare/v1.15.4...v1.16.0) (2026-04-27)
 
 
