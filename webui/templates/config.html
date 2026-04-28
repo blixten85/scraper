@@ -55,16 +55,30 @@
                             <label class="form-label">Name</label>
                             <input type="text" class="form-control" id="cfgName" required placeholder="e.g. Example.com">
                         </div>
-                        <div class="col-12">
-                            <label class="form-label">URL:er <small class="text-muted">(en per rad)</small></label>
-                            <div class="d-flex gap-2 align-items-start">
-                                <textarea class="form-control font-monospace" id="cfgUrl" required rows="3"
-                                    placeholder="https://www.example.com/category/one&#10;https://www.example.com/category/two"></textarea>
-                                <button type="button" class="btn btn-outline-secondary text-nowrap" id="detectBtn" onclick="autoDetect()" title="Auto-detect selectors from first URL">
+                        <div class="col-md-6">
+                            <label class="form-label">Start URL</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="cfgUrl" required placeholder="https://www.example.com/products">
+                                <button type="button" class="btn btn-outline-secondary text-nowrap" id="detectBtn" onclick="autoDetect()" title="Auto-detect selectors">
                                     <i class="bi bi-magic" id="detectIcon"></i> Detect
                                 </button>
                             </div>
-                            <div class="form-text">Detect körs mot första raden. Alla URL:er scrapar med samma selektorer.</div>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="d-flex flex-column gap-1 mb-1">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="cfgSubcategory">
+                                    <label class="form-check-label" for="cfgSubcategory">
+                                        Auto-discover subcategories <small class="text-muted">(följ kategorilänkar)</small>
+                                    </label>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="cfgStealth">
+                                    <label class="form-check-label" for="cfgStealth">
+                                        Stealth mode <small class="text-muted">(Akamai / Cloudflare)</small>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Product container selector</label>
@@ -83,16 +97,13 @@
                             <input type="text" class="form-control" id="cfgLink" required placeholder="a.product-link">
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Proxy URL <small class="text-muted">(optional, overrides global)</small></label>
-                            <input type="text" class="form-control" id="cfgProxy" placeholder="socks5://user:pass@host:1080">
+                            <label class="form-label">Exclude link pattern <small class="text-muted">(optional)</small></label>
+                            <input type="text" class="form-control" id="cfgExclude" placeholder="/produkt/x">
+                            <div class="form-text">Produktlänkar som innehåller denna sträng ignoreras (t.ex. fyndhörna-artiklar).</div>
                         </div>
-                        <div class="col-md-6 d-flex align-items-end">
-                            <div class="form-check form-switch mb-2">
-                                <input class="form-check-input" type="checkbox" id="cfgStealth">
-                                <label class="form-check-label" for="cfgStealth">
-                                    Stealth mode <small class="text-muted">(Akamai / Cloudflare)</small>
-                                </label>
-                            </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Proxy URL <small class="text-muted">(optional)</small></label>
+                            <input type="text" class="form-control" id="cfgProxy" placeholder="socks5://user:pass@host:1080">
                         </div>
                         <div class="col-12 d-flex gap-2 pt-1">
                             <button type="submit" class="btn btn-primary">
@@ -179,7 +190,10 @@
                 product_selector: "a[href*='/produkt/']",
                 title_selector: "",
                 price_selector: "text=/\\d[\\d\\s]*\\s*kr/",
-                link_selector: ""
+                link_selector: "",
+                subcategory: true,
+                pagination_selector: "a[href*='/kategori/']",
+                exclude_link_pattern: "/produkt/x"
             },
             komplett: {
                 name: "Komplett.se",
@@ -187,7 +201,9 @@
                 product_selector: "div.product-list-item",
                 title_selector: "h2.product-name",
                 price_selector: "span.product-price-now",
-                link_selector: "a.product-link"
+                link_selector: "a.product-link",
+                subcategory: true,
+                pagination_selector: "a[href*='/category/']"
             },
             webhallen: {
                 name: "Webhallen.com",
@@ -195,7 +211,9 @@
                 product_selector: "div.product-item",
                 title_selector: "h2.product-title",
                 price_selector: "span.price",
-                link_selector: "a.product-link"
+                link_selector: "a.product-link",
+                subcategory: true,
+                pagination_selector: "a[href*='/category/']"
             }
         };
 
@@ -230,8 +248,10 @@
             document.getElementById('cfgTitle').value = t.title_selector;
             document.getElementById('cfgPrice').value = t.price_selector;
             document.getElementById('cfgLink').value = t.link_selector;
+            document.getElementById('cfgExclude').value = t.exclude_link_pattern || '';
             document.getElementById('cfgProxy').value = '';
             document.getElementById('cfgStealth').checked = false;
+            document.getElementById('cfgSubcategory').checked = !!t.subcategory;
             document.getElementById('addForm').style.display = 'block';
             document.getElementById('addForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
@@ -244,9 +264,9 @@
 
         function autoDetect() {
             const urlInput = document.getElementById('cfgUrl');
-            const firstUrl = normalizeUrl(urlInput.value.split('\n')[0].trim());
-            if (!firstUrl) { showToast('Enter a URL first', 'warning'); return; }
-            const url = firstUrl;
+            const url = normalizeUrl(urlInput.value.trim());
+            if (!url) { showToast('Enter a URL first', 'warning'); return; }
+            urlInput.value = url;
             const btn = document.getElementById('detectBtn');
             const icon = document.getElementById('detectIcon');
             btn.disabled = true;
@@ -284,15 +304,18 @@
 
         function addConfig(e) {
             e.preventDefault();
-            const rawUrls = document.getElementById('cfgUrl').value
-                .split('\n').map(u => normalizeUrl(u.trim())).filter(Boolean).join('\n');
+            const isSubcategory = document.getElementById('cfgSubcategory').checked;
+            const t = Object.values(templates).find(t => t.name === document.getElementById('cfgName').value);
             const data = {
                 name: document.getElementById('cfgName').value,
-                base_url: rawUrls,
+                base_url: normalizeUrl(document.getElementById('cfgUrl').value.trim()),
                 product_selector: document.getElementById('cfgProduct').value,
                 title_selector: document.getElementById('cfgTitle').value,
                 price_selector: document.getElementById('cfgPrice').value,
                 link_selector: document.getElementById('cfgLink').value,
+                pagination_type: isSubcategory ? 'subcategory' : 'query',
+                pagination_selector: isSubcategory ? (t?.pagination_selector || '') : '',
+                exclude_link_pattern: document.getElementById('cfgExclude').value.trim(),
                 proxy_url: document.getElementById('cfgProxy').value.trim(),
                 use_stealth: document.getElementById('cfgStealth').checked,
                 enabled: true
