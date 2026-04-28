@@ -439,10 +439,11 @@ async def scrape_site(context, config):
                 break
             prev = count
 
+    start_urls = [u.strip().rstrip('/') for u in config['base_url'].splitlines() if u.strip()]
+
     if config.get('pagination_type') == 'subcategory':
-        base = config['base_url'].rstrip('/')
         visited = set()
-        queue = [base]
+        queue = list(start_urls)
         seen_product_urls = set()
 
         while queue and not shutdown_event.is_set():
@@ -501,57 +502,61 @@ async def scrape_site(context, config):
         logger.info(f"Done with {config['name']}: {products_found} products")
 
     else:
-        page_num = 1
         known_urls = set()
         page = None
 
         try:
-            url = config['base_url']
             max_pages = config.get('max_pages', 10)
 
-            while url and page_num <= max_pages and not shutdown_event.is_set():
-                logger.info(f"  Page {page_num}/{max_pages}: {url}")
-                page = await scrape_page_with_retry(context, url, use_stealth=config.get('use_stealth', 0))
-                if not page:
+            for base_url in start_urls:
+                if shutdown_event.is_set():
                     break
+                page_num = 1
+                url = base_url
 
-                try:
-                    await _cookies_once(page)
-                    await _infinite_scroll(page, rounds=15)
-                    elements = await page.query_selector_all(config['product_selector'])
-                    logger.info(f"  Found {len(elements)} elements")
-
-                    async def _extract_query_elements():
-                        count = 0
-                        for elem in elements:
-                            product = await extract_product(page, elem, config)
-                            if product:
-                                was_known = product['url'] in known_urls
-                                known_urls.add(product['url'])
-                                async with write_lock:
-                                    write_buffer.append((product, was_known))
-                                    if len(write_buffer) >= 10:
-                                        await flush_buffer()
-                                count += 1
-                        return count
+                while url and page_num <= max_pages and not shutdown_event.is_set():
+                    logger.info(f"  Page {page_num}/{max_pages}: {url}")
+                    page = await scrape_page_with_retry(context, url, use_stealth=config.get('use_stealth', 0))
+                    if not page:
+                        break
 
                     try:
-                        n = await asyncio.wait_for(_extract_query_elements(), timeout=60)
-                        products_found += n
-                    except asyncio.TimeoutError:
-                        logger.warning(f"  Extraction timed out after 60s, moving on")
-                finally:
-                    await page.close()
-                    page = None
+                        await _cookies_once(page)
+                        await _infinite_scroll(page, rounds=15)
+                        elements = await page.query_selector_all(config['product_selector'])
+                        logger.info(f"  Found {len(elements)} elements")
 
-                if config.get('pagination_type') == 'query':
-                    separator = '&' if '?' in config['base_url'] else '?'
-                    url = f"{config['base_url']}{separator}page={page_num + 1}"
-                else:
-                    url = None
+                        async def _extract_query_elements():
+                            count = 0
+                            for elem in elements:
+                                product = await extract_product(page, elem, config)
+                                if product:
+                                    was_known = product['url'] in known_urls
+                                    known_urls.add(product['url'])
+                                    async with write_lock:
+                                        write_buffer.append((product, was_known))
+                                        if len(write_buffer) >= 10:
+                                            await flush_buffer()
+                                    count += 1
+                            return count
 
-                page_num += 1
-                await asyncio.sleep(random.uniform(3, 7))
+                        try:
+                            n = await asyncio.wait_for(_extract_query_elements(), timeout=60)
+                            products_found += n
+                        except asyncio.TimeoutError:
+                            logger.warning(f"  Extraction timed out after 60s, moving on")
+                    finally:
+                        await page.close()
+                        page = None
+
+                    if config.get('pagination_type') == 'query':
+                        separator = '&' if '?' in base_url else '?'
+                        url = f"{base_url}{separator}page={page_num + 1}"
+                    else:
+                        url = None
+
+                    page_num += 1
+                    await asyncio.sleep(random.uniform(3, 7))
 
             logger.info(f"Done with {config['name']}: {products_found} products")
         except Exception as e:

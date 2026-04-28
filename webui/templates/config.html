@@ -55,14 +55,16 @@
                             <label class="form-label">Name</label>
                             <input type="text" class="form-control" id="cfgName" required placeholder="e.g. Example.com">
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">URL</label>
-                            <div class="d-flex gap-2">
-                                <input type="text" class="form-control" id="cfgUrl" required placeholder="https://www.example.com/products">
-                                <button type="button" class="btn btn-outline-secondary text-nowrap" id="detectBtn" onclick="autoDetect()" title="Auto-detect selectors">
+                        <div class="col-12">
+                            <label class="form-label">URL:er <small class="text-muted">(en per rad)</small></label>
+                            <div class="d-flex gap-2 align-items-start">
+                                <textarea class="form-control font-monospace" id="cfgUrl" required rows="3"
+                                    placeholder="https://www.example.com/category/one&#10;https://www.example.com/category/two"></textarea>
+                                <button type="button" class="btn btn-outline-secondary text-nowrap" id="detectBtn" onclick="autoDetect()" title="Auto-detect selectors from first URL">
                                     <i class="bi bi-magic" id="detectIcon"></i> Detect
                                 </button>
                             </div>
+                            <div class="form-text">Detect körs mot första raden. Alla URL:er scrapar med samma selektorer.</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Product container selector</label>
@@ -223,7 +225,7 @@
             const t = templates[name];
             if (!t) return;
             document.getElementById('cfgName').value = t.name;
-            document.getElementById('cfgUrl').value = t.base_url;
+            document.getElementById('cfgUrl').value = t.base_url || '';
             document.getElementById('cfgProduct').value = t.product_selector;
             document.getElementById('cfgTitle').value = t.title_selector;
             document.getElementById('cfgPrice').value = t.price_selector;
@@ -242,9 +244,9 @@
 
         function autoDetect() {
             const urlInput = document.getElementById('cfgUrl');
-            const url = normalizeUrl(urlInput.value);
-            if (!url) { showToast('Enter a URL first', 'warning'); return; }
-            urlInput.value = url;
+            const firstUrl = normalizeUrl(urlInput.value.split('\n')[0].trim());
+            if (!firstUrl) { showToast('Enter a URL first', 'warning'); return; }
+            const url = firstUrl;
             const btn = document.getElementById('detectBtn');
             const icon = document.getElementById('detectIcon');
             btn.disabled = true;
@@ -282,9 +284,11 @@
 
         function addConfig(e) {
             e.preventDefault();
+            const rawUrls = document.getElementById('cfgUrl').value
+                .split('\n').map(u => normalizeUrl(u.trim())).filter(Boolean).join('\n');
             const data = {
                 name: document.getElementById('cfgName').value,
-                base_url: normalizeUrl(document.getElementById('cfgUrl').value),
+                base_url: rawUrls,
                 product_selector: document.getElementById('cfgProduct').value,
                 title_selector: document.getElementById('cfgTitle').value,
                 price_selector: document.getElementById('cfgPrice').value,
@@ -341,7 +345,14 @@
                             <tr>
                                 <td>
                                     <div class="fw-500">${escapeHtml(c.name)}</div>
-                                    <div class="text-muted small text-truncate" style="max-width:220px">${escapeHtml(c.base_url)}</div>
+                                    ${(() => {
+                                        const urls = c.base_url.split('\n').map(u => u.trim()).filter(Boolean);
+                                        if (urls.length > 1) {
+                                            return `<div class="text-muted small text-truncate" style="max-width:220px">${escapeHtml(urls[0])}</div>
+                                            <div class="text-muted small">+${urls.length - 1} URL${urls.length > 2 ? ':er' : ''} till</div>`;
+                                        }
+                                        return `<div class="text-muted small text-truncate" style="max-width:220px">${escapeHtml(urls[0] || c.base_url)}</div>`;
+                                    })()}
                                     ${c.proxy_url ? `<div class="text-muted small"><i class="bi bi-arrow-left-right me-1"></i>${escapeHtml(c.proxy_url.replace(/\/\/.*@/, '//***@'))}</div>` : ''}
                                 </td>
                                 <td class="align-middle">
