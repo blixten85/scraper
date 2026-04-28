@@ -86,6 +86,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+BROWSER_ARGS = [
+    '--no-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-http2',
+    '--ignore-certificate-errors',
+    '--disable-blink-features=AutomationControlled',
+    '--disable-web-security',
+    '--disable-zygote',
+]
+
 stats = {"products": 0, "updated": 0, "skipped": 0, "errors": 0, "retries": 0}
 shutdown_event = asyncio.Event()
 scraping_active = False
@@ -665,18 +675,7 @@ async def run_scraper():
     browser = None
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=headless,
-                args=[
-                    '--no-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-http2',
-                    '--ignore-certificate-errors',
-                    '--disable-blink-features=AutomationControlled',
-                    '--disable-web-security',
-                    '--disable-zygote',
-                ],
-            )
+            browser = await p.chromium.launch(headless=headless, args=BROWSER_ARGS)
             sem = asyncio.Semaphore(concurrent_pages)
 
             async def worker(cfg):
@@ -854,7 +853,7 @@ def test_scrape_sync():
         browser = None
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
+                browser = await p.chromium.launch(headless=True, args=BROWSER_ARGS)
                 page = await browser.new_page()
                 try:
                     await page.goto(config['base_url'], timeout=30000)
@@ -1042,7 +1041,7 @@ def detect_selectors():
         browser = None
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
+                browser = await p.chromium.launch(headless=True, args=BROWSER_ARGS)
                 page = await browser.new_page()
                 await stealth_async(page)
                 try:
