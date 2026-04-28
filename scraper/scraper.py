@@ -1208,34 +1208,62 @@ def trigger_scrape_alias():
     return trigger_scrape()
 
 
+_EXPORT_QUERIES = {
+    (True, True): ("""
+        SELECT p.title, p.current_price, p.url, c.name AS site,
+            ph_old.price AS old_price,
+            CASE WHEN ph_old.price > 0 AND p.current_price < ph_old.price
+                 THEN ROUND((1 - p.current_price::numeric / ph_old.price) * 100)::int
+                 ELSE NULL END AS drop_pct
+        FROM products p
+        JOIN scraper_config c ON p.site_config_id = c.id
+        LEFT JOIN LATERAL (
+            SELECT price FROM price_history
+            WHERE product_id = p.id AND timestamp <= NOW() - INTERVAL '1 day'
+            ORDER BY timestamp DESC LIMIT 1
+        ) ph_old ON true
+        WHERE p.current_price > 0 AND c.name = %s
+        ORDER BY p.current_price ASC
+    """, True),
+    (True, False): ("""
+        SELECT p.title, p.current_price, p.url, c.name AS site,
+            ph_old.price AS old_price,
+            CASE WHEN ph_old.price > 0 AND p.current_price < ph_old.price
+                 THEN ROUND((1 - p.current_price::numeric / ph_old.price) * 100)::int
+                 ELSE NULL END AS drop_pct
+        FROM products p
+        JOIN scraper_config c ON p.site_config_id = c.id
+        LEFT JOIN LATERAL (
+            SELECT price FROM price_history
+            WHERE product_id = p.id AND timestamp <= NOW() - INTERVAL '1 day'
+            ORDER BY timestamp DESC LIMIT 1
+        ) ph_old ON true
+        WHERE p.current_price > 0
+        ORDER BY c.name, p.current_price ASC
+    """, False),
+    (False, True): ("""
+        SELECT p.title, p.current_price, p.url, c.name AS site,
+            NULL AS old_price, NULL AS drop_pct
+        FROM products p
+        JOIN scraper_config c ON p.site_config_id = c.id
+        WHERE p.current_price > 0 AND c.name = %s
+        ORDER BY p.current_price ASC
+    """, True),
+    (False, False): ("""
+        SELECT p.title, p.current_price, p.url, c.name AS site,
+            NULL AS old_price, NULL AS drop_pct
+        FROM products p
+        JOIN scraper_config c ON p.site_config_id = c.id
+        WHERE p.current_price > 0
+        ORDER BY c.name, p.current_price ASC
+    """, False),
+}
+
+
 def _build_export_query(include_drops, site_name=None):
-    if include_drops:
-        base = """
-            SELECT p.title, p.current_price, p.url, c.name AS site,
-                ph_old.price AS old_price,
-                CASE WHEN ph_old.price > 0 AND p.current_price < ph_old.price
-                     THEN ROUND((1 - p.current_price::numeric / ph_old.price) * 100)::int
-                     ELSE NULL END AS drop_pct
-            FROM products p
-            JOIN scraper_config c ON p.site_config_id = c.id
-            LEFT JOIN LATERAL (
-                SELECT price FROM price_history
-                WHERE product_id = p.id AND timestamp <= NOW() - INTERVAL '1 day'
-                ORDER BY timestamp DESC LIMIT 1
-            ) ph_old ON true
-            WHERE p.current_price > 0
-        """
-    else:
-        base = """
-            SELECT p.title, p.current_price, p.url, c.name AS site,
-                NULL AS old_price, NULL AS drop_pct
-            FROM products p
-            JOIN scraper_config c ON p.site_config_id = c.id
-            WHERE p.current_price > 0
-        """
-    if site_name:
-        return base + " AND c.name = %s ORDER BY p.current_price ASC", (site_name,)
-    return base + " ORDER BY c.name, p.current_price ASC", ()
+    query, needs_site = _EXPORT_QUERIES[(bool(include_drops), bool(site_name))]
+    params = (site_name,) if needs_site else ()
+    return query, params
 
 
 @app.route('/export/<site_name>')
