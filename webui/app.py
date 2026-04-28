@@ -153,7 +153,8 @@ def detect_selectors():
 def export_csv():
     try:
         from flask import Response
-        resp = engine_request('GET', '/export')
+        include_drops = request.args.get('include_drops', '0')
+        resp = engine_request('GET', '/export', params={'include_drops': include_drops})
         return Response(
             resp.content,
             status=resp.status_code,

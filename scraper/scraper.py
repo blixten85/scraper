@@ -6,6 +6,7 @@ with proxy support, retry/backoff and periodic flush
 """
 
 import asyncio
+import csv
 import json
 import datetime
 import os
@@ -14,10 +15,11 @@ import logging
 import sys
 import random
 import signal
+from io import StringIO
 from urllib.parse import urljoin
 from playwright.async_api import async_playwright
 from playwright_stealth import stealth_async
-from flask import Flask, request, jsonify
+from flask import Flask, Response, request, jsonify
 import threading
 import psycopg2
 import psycopg2.extras
@@ -260,6 +262,7 @@ def init_db():
 
     cur.execute("ALTER TABLE scraper_config ADD COLUMN IF NOT EXISTS use_stealth INTEGER DEFAULT 0")
     cur.execute("ALTER TABLE scraper_config ADD COLUMN IF NOT EXISTS proxy_url TEXT DEFAULT ''")
+    cur.execute("ALTER TABLE scraper_config ADD COLUMN IF NOT EXISTS exclude_link_pattern TEXT DEFAULT ''")
 
     cur.execute("CREATE INDEX IF NOT EXISTS idx_products_url ON products(url)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_products_last_updated ON products(last_updated)")
@@ -373,8 +376,12 @@ async def extract_product(page, element, config):
         if price < config.get('min_price', 0) or price > config.get('max_price', 999999):
             return None
         
-        url = urljoin(config['base_url'], link)
-        
+        url = urljoin(page.url, link)
+
+        exclude = config.get('exclude_link_pattern', '')
+        if exclude and exclude in url:
+            return None
+
         return {'url': url, 'title': title[:200], 'price': price, 'site_config_id': config['id']}
     except Exception as e:
         logger.debug(f"Extraction error: {e}")
@@ -749,8 +756,9 @@ def create_config():
         cur.execute("""
             INSERT INTO scraper_config
             (name, base_url, product_selector, title_selector, price_selector, link_selector,
-             pagination_type, pagination_selector, max_pages, min_price, max_price, categories, use_stealth, proxy_url)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             pagination_type, pagination_selector, max_pages, min_price, max_price, categories,
+             use_stealth, proxy_url, exclude_link_pattern)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """, (
             data['name'], data['base_url'],
@@ -763,7 +771,8 @@ def create_config():
             data.get('max_price', 999999),
             json.dumps(data.get('categories', [])),
             1 if data.get('use_stealth') else 0,
-            data.get('proxy_url', '')
+            data.get('proxy_url', ''),
+            data.get('exclude_link_pattern', '')
         ))
         config_id = cur.fetchone()[0]
         conn.commit()
@@ -791,7 +800,7 @@ def update_config(config_id):
                 price_selector = %s, link_selector = %s, pagination_type = %s,
                 pagination_selector = %s, max_pages = %s, enabled = %s,
                 min_price = %s, max_price = %s, categories = %s,
-                use_stealth = %s, proxy_url = %s, updated_at = NOW()
+                use_stealth = %s, proxy_url = %s, exclude_link_pattern = %s, updated_at = NOW()
             WHERE id = %s
         """, (
             data['name'], data['base_url'],
@@ -806,6 +815,7 @@ def update_config(config_id):
             json.dumps(data.get('categories', [])),
             1 if data.get('use_stealth') else 0,
             data.get('proxy_url', ''),
+            data.get('exclude_link_pattern', ''),
             config_id
         ))
         conn.commit()
@@ -1200,34 +1210,82 @@ def trigger_scrape_alias():
     return trigger_scrape()
 
 
-@app.route('/export/<site_name>')
-def export_site_csv(site_name):
-    """Export products for a specific site to CSV"""
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    
-    cur.execute("""
-        SELECT p.title, p.current_price, p.url
+_EXPORT_QUERIES = {
+    (True, True): ("""
+        SELECT p.title, p.current_price, p.url, c.name AS site,
+            ph_old.price AS old_price,
+            CASE WHEN ph_old.price > 0 AND p.current_price < ph_old.price
+                 THEN ROUND((1 - p.current_price::numeric / ph_old.price) * 100)::int
+                 ELSE NULL END AS drop_pct
         FROM products p
         JOIN scraper_config c ON p.site_config_id = c.id
-        WHERE c.name = %s AND p.current_price > 0
+        LEFT JOIN LATERAL (
+            SELECT price FROM price_history
+            WHERE product_id = p.id AND timestamp <= NOW() - INTERVAL '1 day'
+            ORDER BY timestamp DESC LIMIT 1
+        ) ph_old ON true
+        WHERE p.current_price > 0 AND c.name = %s
         ORDER BY p.current_price ASC
-    """, (site_name,))
-    
+    """, True),
+    (True, False): ("""
+        SELECT p.title, p.current_price, p.url, c.name AS site,
+            ph_old.price AS old_price,
+            CASE WHEN ph_old.price > 0 AND p.current_price < ph_old.price
+                 THEN ROUND((1 - p.current_price::numeric / ph_old.price) * 100)::int
+                 ELSE NULL END AS drop_pct
+        FROM products p
+        JOIN scraper_config c ON p.site_config_id = c.id
+        LEFT JOIN LATERAL (
+            SELECT price FROM price_history
+            WHERE product_id = p.id AND timestamp <= NOW() - INTERVAL '1 day'
+            ORDER BY timestamp DESC LIMIT 1
+        ) ph_old ON true
+        WHERE p.current_price > 0
+        ORDER BY c.name, p.current_price ASC
+    """, False),
+    (False, True): ("""
+        SELECT p.title, p.current_price, p.url, c.name AS site,
+            NULL AS old_price, NULL AS drop_pct
+        FROM products p
+        JOIN scraper_config c ON p.site_config_id = c.id
+        WHERE p.current_price > 0 AND c.name = %s
+        ORDER BY p.current_price ASC
+    """, True),
+    (False, False): ("""
+        SELECT p.title, p.current_price, p.url, c.name AS site,
+            NULL AS old_price, NULL AS drop_pct
+        FROM products p
+        JOIN scraper_config c ON p.site_config_id = c.id
+        WHERE p.current_price > 0
+        ORDER BY c.name, p.current_price ASC
+    """, False),
+}
+
+
+
+@app.route('/export/<site_name>')
+def export_site_csv(site_name):
+    include_drops = request.args.get('include_drops', '0') == '1'
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    # Always use the site-specific query variant; site_name never influences query selection
+    query, _ = _EXPORT_QUERIES[(include_drops, True)]
+    cur.execute(query, (site_name,))
     products = cur.fetchall()
     return_db(conn)
-    
-    import csv
-    from io import StringIO
-    from flask import Response
-    
+
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(['Product', 'Price (SEK)', 'Link'])
-    
-    for p in products:
-        writer.writerow([p['title'], p['current_price'], p['url']])
-    
+    if include_drops:
+        writer.writerow(['Product', 'Price (SEK)', 'Was (SEK)', 'Drop %', 'Link'])
+        for p in products:
+            writer.writerow([p['title'], p['current_price'],
+                             p['old_price'] or '', p['drop_pct'] or '', p['url']])
+    else:
+        writer.writerow(['Product', 'Price (SEK)', 'Link'])
+        for p in products:
+            writer.writerow([p['title'], p['current_price'], p['url']])
+
     output.seek(0)
     return Response(
         output.getvalue(),
@@ -1238,28 +1296,25 @@ def export_site_csv(site_name):
 
 @app.route('/export')
 def export_all_csv():
-    """Export all products to CSV"""
-    import csv
-    from io import StringIO
-    from flask import Response
-
+    include_drops = request.args.get('include_drops', '0') == '1'
     conn = get_db()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("""
-        SELECT p.title, p.current_price, p.url, c.name AS site
-        FROM products p
-        JOIN scraper_config c ON p.site_config_id = c.id
-        WHERE p.current_price > 0
-        ORDER BY c.name, p.current_price ASC
-    """)
+    query, _ = _EXPORT_QUERIES[(include_drops, False)]
+    cur.execute(query, ())
     products = cur.fetchall()
     return_db(conn)
 
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(['Site', 'Product', 'Price (SEK)', 'Link'])
-    for p in products:
-        writer.writerow([p['site'], p['title'], p['current_price'], p['url']])
+    if include_drops:
+        writer.writerow(['Site', 'Product', 'Price (SEK)', 'Was (SEK)', 'Drop %', 'Link'])
+        for p in products:
+            writer.writerow([p['site'], p['title'], p['current_price'],
+                             p['old_price'] or '', p['drop_pct'] or '', p['url']])
+    else:
+        writer.writerow(['Site', 'Product', 'Price (SEK)', 'Link'])
+        for p in products:
+            writer.writerow([p['site'], p['title'], p['current_price'], p['url']])
 
     output.seek(0)
     filename = f"products_{datetime.datetime.now().strftime('%Y%m%d')}.csv"
